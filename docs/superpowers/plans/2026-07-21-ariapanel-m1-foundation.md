@@ -112,8 +112,7 @@ Expected：三者均输出版本号。
     "vue-i18n": "^10.0.0",
     "pinia": "^2.2.0",
     "naive-ui": "^2.40.0",
-    "@tauri-apps/api": "^2.1.0",
-    "@tauri-apps/plugin-log": "^2.0.0"
+    "@tauri-apps/api": "^2.1.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.1.0",
@@ -827,6 +826,9 @@ pub struct RpcEndpoint {
 
 pub struct AppState {
     pub endpoint: Mutex<Option<RpcEndpoint>>,
+    pub port: Mutex<Option<u16>>,
+    pub secret: Mutex<Option<String>>,
+    pub supervisor: Mutex<crate::aria2::Supervisor>,
 }
 
 #[tauri::command]
@@ -848,15 +850,20 @@ pub mod aria2;
 pub mod commands;
 pub mod secret;
 
-use aria2::{binary_path, new_config, rpc_http_url, Supervisor};
-use commands::{AppState, RpcEndpoint, get_rpc_endpoint};
+use aria2::{binary_path, new_config, rpc_http_url};
+use commands::{AppState, RpcEndpoint};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .manage(AppState { endpoint: Mutex::new(None) })
+    let app = tauri::Builder::default()
+        .manage(AppState {
+            endpoint: Mutex::new(None),
+            port: Mutex::new(None),
+            secret: Mutex::new(None),
+            supervisor: Mutex::new(aria2::Supervisor::new()),
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -866,33 +873,45 @@ pub fn run() {
                 };
                 let dir = handle.path().app_data_dir().unwrap_or_default();
                 let session = dir.join("aria2.session.gz");
-                let cfg = new_config(dir.clone(), session);
+                let cfg = new_config(dir, session);
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
-                let mut sup = Supervisor::new();
-                if sup.start(&binary, &cfg).await {
-                    let ep = RpcEndpoint { url: rpc_http_url(port), secret };
-                    if let Some(st) = handle.try_state::<AppState>() {
-                        if let Ok(mut g) = st.endpoint.lock() { *g = Some(ep); }
+                let st = match handle.try_state::<AppState>() { Some(s) => s, None => return };
+                let ok = {
+                    let mut sup = st.supervisor.lock().unwrap();
+                    sup.start(&binary, &cfg).await
+                };
+                if ok {
+                    if let Ok(mut g) = st.endpoint.lock() {
+                        *g = Some(RpcEndpoint { url: rpc_http_url(port), secret: secret.clone() });
                     }
-                    handle.emit("aria2://started", ()).ok();
+                    if let Ok(mut p) = st.port.lock() { *p = Some(port); }
+                    if let Ok(mut s) = st.secret.lock() { *s = Some(secret); }
+                    let _ = handle.emit("aria2://started", ());
                 } else {
-                    handle.emit("aria2://failed", ()).ok();
+                    let _ = handle.emit("aria2://failed", ());
                 }
-                // 持有 supervisor 直到退出：放进 app 数据
-                handle.manage(Mutex::new(sup));
             });
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // M1：关窗即退出整个应用（托盘在 M2）
-                window.app_handle().exit(0);
+        .invoke_handler(tauri::generate_handler![commands::get_rpc_endpoint])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    // 优雅退出（spec §4.5）：最后一个窗口关闭触发 ExitRequested，
+    // 同步执行 aria2.shutdown → 等待 ≤5s → 强杀。
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            if let Some(st) = app_handle.try_state::<AppState>() {
+                let port = st.port.lock().ok().and_then(|g| *g);
+                let secret = st.secret.lock().ok().and_then(|g| g.clone());
+                if let (Some(port), Some(secret)) = (port, secret) {
+                    let mut sup = st.supervisor.lock().unwrap();
+                    tauri::async_runtime::block_on(sup.shutdown(port, &secret));
+                }
             }
-        })
-        .invoke_handler(tauri::generate_handler![get_rpc_endpoint])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        }
+    });
 }
 ```
 
@@ -1765,5 +1784,5 @@ git commit -m "feat(ui): task list shell with live progress and minimal add-url"
 **类型一致性**：`Aria2Client.call/addUri/tellActive/...`、`Poller`、`WsNotifier`、stores 的 `apply/upsert`、Rust 的 `new_config/build_args/Supervisor/get_rpc_endpoint` 在各任务间命名与签名一致；前端 `Aria2Task` 类型跨 RPC/store/UI 一致。
 
 **已知简化（留给后续里程碑）**：
-- M1 的 `on_window_event::CloseRequested → exit(0)` 是"关窗即退出"；托盘行为属 M2（与 spec §6.4 一致）。
+- M1 最后一个窗口关闭即触发优雅退出（ExitRequested → `Supervisor::shutdown`），无托盘"最小化到托盘"行为；托盘属 M2（与 spec §6.4 一致）。
 - `AppShell.vue` 的 `<script lang="ts">` 混用 `setup` 与选项式仅为引用 `NConfigProvider`，可在 Task 12 内简化为仅 `import`（Naive UI 已全局注册）。实现者按需收敛。
