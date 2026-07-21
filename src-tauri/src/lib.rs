@@ -1,3 +1,4 @@
+pub mod aria2;
 pub mod secret;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
