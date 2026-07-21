@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# Bundled aria2c binaries (fetched per-platform by scripts/fetch-aria2)
+src-tauri/resources/aria2c*
+src-tauri/resources/*.exe
+
+# Logs
+*.log
+logs/
+
+# Superpowers brainstorm artifacts
+.superpowers/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
