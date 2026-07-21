@@ -417,7 +417,7 @@ Expected：3 个测试通过。
 
 - [ ] **Step 5: 在 lib.rs 声明模块**
 
-`src-tauri/src/lib.rs`：
+在**已有的** `src-tauri/src/lib.rs`（Task 1 脚手架生成的，含 `run()`）顶部加入一行声明——**保留文件已有内容，不要替换整个文件**：
 ```rust
 pub mod secret;
 ```
@@ -543,7 +543,7 @@ Expected：2 个测试通过。
 
 - [ ] **Step 5: 在 lib.rs 声明模块**
 
-`src-tauri/src/lib.rs`：
+在**已有的** `src-tauri/src/lib.rs` 顶部加入（保留已有内容，不要替换整个文件；与 Task 3 的 `pub mod secret;` 共存）：
 ```rust
 pub mod aria2;
 pub mod secret;
