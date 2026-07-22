@@ -279,18 +279,30 @@ git commit -m "chore: scaffold Tauri + Vue + TS project"
 
 `scripts/fetch-aria2.ps1`：
 ```powershell
-# 下载 aria2c.exe (Windows x64) 到 src-tauri/resources/
+# 获取 aria2c.exe (Windows x64) 到 src-tauri/resources/
+# 优先使用系统已安装的 aria2c（如 scoop/winget 装的官方 1.37.0）；找不到再从官方 release 下载。
 $ErrorActionPreference = 'Stop'
-$ver = '1.37.0'
-$url = "https://github.com/aria2/aria2/releases/download/release-$ver/aria2-$ver-win-64bit-build1.zip"
-$tmp = "$env:TEMP\aria2.zip"
 $dst = "$PSScriptRoot\..\src-tauri\resources"
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
-Invoke-WebRequest $url -OutFile $tmp
-Expand-Archive $tmp -DestinationPath "$env:TEMP\aria2-extract" -Force
-Copy-Item "$env:TEMP\aria2-extract\aria2-$ver-win-64bit-build1\aria2c.exe" "$dst\aria2c.exe" -Force
-Remove-Item $tmp, "$env:TEMP\aria2-extract" -Recurse -Force
-Write-Output "fetched: $dst\aria2c.exe"
+$target = Join-Path $dst 'aria2c.exe'
+
+# 1) 优先复制系统已装的 aria2c
+$sys = (Get-Command aria2c -ErrorAction SilentlyContinue).Source
+if ($sys) {
+    Copy-Item $sys $target -Force
+    Write-Output "copied system aria2c: $sys -> $target"
+} else {
+    # 2) 从官方 release 下载
+    $ver = '1.37.0'
+    $url = "https://github.com/aria2/aria2/releases/download/release-$ver/aria2-$ver-win-64bit-build1.zip"
+    $tmp = "$env:TEMP\aria2.zip"
+    Invoke-WebRequest $url -OutFile $tmp
+    Expand-Archive $tmp -DestinationPath "$env:TEMP\aria2-extract" -Force
+    Copy-Item "$env:TEMP\aria2-extract\aria2-$ver-win-64bit-build1\aria2c.exe" $target -Force
+    Remove-Item $tmp, "$env:TEMP\aria2-extract" -Recurse -Force
+    Write-Output "downloaded aria2c $ver -> $target"
+}
+& $target --version
 ```
 
 - [ ] **Step 2: 运行脚本并验证**
@@ -405,7 +417,7 @@ Expected：3 个测试通过。
 
 - [ ] **Step 5: 在 lib.rs 声明模块**
 
-`src-tauri/src/lib.rs`：
+在**已有的** `src-tauri/src/lib.rs`（Task 1 脚手架生成的，含 `run()`）顶部加入一行声明——**保留文件已有内容，不要替换整个文件**：
 ```rust
 pub mod secret;
 ```
@@ -531,7 +543,7 @@ Expected：2 个测试通过。
 
 - [ ] **Step 5: 在 lib.rs 声明模块**
 
-`src-tauri/src/lib.rs`：
+在**已有的** `src-tauri/src/lib.rs` 顶部加入（保留已有内容，不要替换整个文件；与 Task 3 的 `pub mod secret;` 共存）：
 ```rust
 pub mod aria2;
 pub mod secret;
@@ -873,6 +885,8 @@ pub fn run() {
                 };
                 let dir = handle.path().app_data_dir().unwrap_or_default();
                 let session = dir.join("aria2.session.gz");
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(&session, b"");
                 let cfg = new_config(dir, session);
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
@@ -957,7 +971,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { Aria2Client } from './rpc-client'
 
 function fakeFetch(resp: unknown) {
-  return vi.fn(async () => ({
+  return vi.fn(async (_url: string, _init?: RequestInit) => ({
     ok: true,
     status: 200,
     json: async () => resp,
@@ -1104,25 +1118,29 @@ describe('Poller', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it('ticks at 1s when there are active tasks', async () => {
+  it('probes immediately then polls every 1s when there are active tasks', async () => {
     const onTick = vi.fn()
     const p = new Poller(makeClient(2), onTick)
     p.start()
-    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(1)
     expect(onTick).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1000)
     expect(onTick).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onTick).toHaveBeenCalledTimes(3)
     p.stop()
   })
 
-  it('ticks at 5s when idle', async () => {
+  it('slows to 5s cadence when idle after the bootstrap probe', async () => {
     const onTick = vi.fn()
     const p = new Poller(makeClient(0), onTick)
     p.start()
-    await vi.advanceTimersByTimeAsync(4000)
-    expect(onTick).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(1)
     expect(onTick).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(onTick).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onTick).toHaveBeenCalledTimes(2)
     p.stop()
   })
 })
@@ -1627,7 +1645,7 @@ function fmtBytes(s: string): string {
   const u = ['B/s', 'KB/s', 'MB/s', 'GB/s']
   let i = 0; let v = n
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return `${v.toFixed(1)} ${u[i]}`
+  return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
 }
 const rows = computed(() => props.tasks.map(t => ({ t, name: name(t), pct: pct(t) })))
 </script>
@@ -1673,8 +1691,8 @@ function submit() {
 `src/components/AppShell.vue`：
 ```vue
 <script setup lang="ts">
+import { NConfigProvider, darkTheme } from 'naive-ui'
 import { useTheme } from '@/composables/useTheme'
-import { darkTheme } from 'naive-ui'
 const { mode } = useTheme()
 </script>
 
@@ -1683,11 +1701,6 @@ const { mode } = useTheme()
     <slot />
   </NConfigProvider>
 </template>
-
-<script lang="ts">
-import { NConfigProvider } from 'naive-ui'
-export default { components: { NConfigProvider } }
-</script>
 ```
 
 `src/views/TaskListView.vue`：
@@ -1728,12 +1741,12 @@ async function onAdd(url: string) {
 为让 `inject('aria2-client')` 生效，需在 `useAria2` 内 `provide`。更新 `src/App.vue`：
 ```vue
 <script setup lang="ts">
-import { onMounted, provide, ref, type Ref } from 'vue'
+import { onMounted, provide, shallowRef, type Ref } from 'vue'
 import { useAria2 } from '@/composables/useAria2'
 import type { Aria2Client } from '@/lib/aria2/rpc-client'
 
 const aria = useAria2()
-const clientRef = ref<Aria2Client | null>(null)
+const clientRef = shallowRef<Aria2Client | null>(null)
 provide<Ref<Aria2Client | null>>('aria2-client', clientRef)
 onMounted(async () => {
   await aria.start()
