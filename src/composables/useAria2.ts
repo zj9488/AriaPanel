@@ -6,6 +6,11 @@ import { WsNotifier } from '@/lib/aria2/ws-notify'
 import { useConnectionStore } from '@/stores/connection'
 import { useTaskStore } from '@/stores/task'
 
+export interface Aria2Api {
+  client: Aria2Client
+  refresh: () => void
+}
+
 export function useAria2() {
   const conn = useConnectionStore()
   const tasks = useTaskStore()
@@ -43,7 +48,10 @@ export function useAria2() {
     try { conn.setStat(await client.getGlobalStat()) } catch { /* ignore */ }
   }
 
-  function getClient() { return client }
+  function getApi(): Aria2Api | null {
+    if (!client || !poller) return null
+    return { client, refresh: () => poller!.refreshNow() }
+  }
 
-  return { start, getClient }
+  return { start, getApi }
 }
