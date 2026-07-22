@@ -4,7 +4,7 @@ import { useTaskStore } from './task'
 import type { Aria2Task } from '@/lib/aria2/types'
 
 function t(gid: string, status: Aria2Task['status']): Aria2Task {
-  return { gid, status, totalLength: '100', completedLength: '0', downloadSpeed: '0', uploadSpeed: '0', files: [] }
+  return { gid, status, totalLength: '100', completedLength: '0', downloadSpeed: '0', uploadSpeed: '0', dir: '/dl', files: [{ path: 'D:/dl/f', length: '100', completedLength: '0', selected: 'true', uris: [] }] }
 }
 
 describe('useTaskStore', () => {

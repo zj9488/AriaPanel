@@ -5,8 +5,8 @@ import type { Aria2Task } from '@/lib/aria2/types'
 
 const tasks: Aria2Task[] = [{
   gid: 'g1', status: 'active', totalLength: '1000', completedLength: '500',
-  downloadSpeed: '100', uploadSpeed: '0',
-  files: [{ path: 'D:/dl/file.bin', length: '1000', completedLength: '500', selected: 'true' }],
+  downloadSpeed: '100', uploadSpeed: '0', dir: 'D:/dl',
+  files: [{ path: 'D:/dl/file.bin', length: '1000', completedLength: '500', selected: 'true', uris: [] }],
 }]
 
 describe('TaskTable', () => {

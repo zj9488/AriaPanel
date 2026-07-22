@@ -34,5 +34,8 @@ export class Aria2Client {
   forceRemove(gid: string) { return this.call('aria2.forceRemove', [gid]) }
   pauseAll() { return this.call('aria2.pauseAll') }
   unpauseAll() { return this.call('aria2.unpauseAll') }
-  addUri(uris: string[]) { return this.call<string>('aria2.addUri', [uris]) }
+  addUri(uris: string[], options?: Record<string, unknown>) {
+    const params = options ? [uris, options] : [uris]
+    return this.call<string>('aria2.addUri', params)
+  }
 }

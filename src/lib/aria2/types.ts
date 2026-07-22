@@ -8,7 +8,14 @@ export interface Aria2Task {
   completedLength: string
   downloadSpeed: string
   uploadSpeed: string
-  files: Array<{ path: string; length: string; completedLength: string; selected: string }>
+  dir: string
+  files: Array<{
+    path: string
+    length: string
+    completedLength: string
+    selected: string
+    uris: Array<{ uri: string; status: string }>
+  }>
   bittorrent?: { info: { name?: string } }
   errorCode?: string
   errorMessage?: string
