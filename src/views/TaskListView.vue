@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, type Ref } from 'vue'
 import { useMessage } from 'naive-ui'
-import AppShell from '@/components/AppShell.vue'
 import Sidebar from '@/components/Sidebar.vue'
 import TopBar from '@/components/TopBar.vue'
 import BulkToolbar from '@/components/BulkToolbar.vue'
@@ -72,7 +71,7 @@ async function submitRetry(url: string) {
   }
 }
 
-function onContextmenu(gid: string, e: MouseEvent) {
+function openContextMenu(gid: string, e: MouseEvent) {
   const t = tasks.tasks.get(gid)
   if (!t) return
   ctx.value = { show: true, x: e.clientX, y: e.clientY, gid, status: t.status }
@@ -80,7 +79,7 @@ function onContextmenu(gid: string, e: MouseEvent) {
 </script>
 
 <template>
-  <AppShell>
+  <div style="height:100vh;display:flex;flex-direction:column">
     <TopBar />
     <div style="display:flex;flex:1;min-height:0">
       <Sidebar />
@@ -88,7 +87,7 @@ function onContextmenu(gid: string, e: MouseEvent) {
         <BulkToolbar />
         <AddUrlBar :on-add="(u:string) => api?.client?.addUri([u]).then(()=>api?.refresh()).catch((e)=>message.error(String(e)))" />
         <div style="flex:1;overflow:auto" @contextmenu.prevent>
-          <TaskTable :tasks="tasks.visibleTasks" :operate="operate" @contextmenu="onContextmenu" />
+          <TaskTable :tasks="tasks.visibleTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" />
         </div>
       </div>
     </div>
@@ -97,5 +96,5 @@ function onContextmenu(gid: string, e: MouseEvent) {
       @select="(op) => operate(ctx.gid, op)" @close="ctx.show = false"
     />
     <RetryDialog v-model:show="retry.show" :original-url="retry.url" @submit="submitRetry" />
-  </AppShell>
+  </div>
 </template>

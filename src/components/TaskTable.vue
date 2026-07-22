@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NCheckbox, NProgress, NTable } from 'naive-ui'
+import { NCheckbox, NPopconfirm, NProgress, NTable } from 'naive-ui'
 import { computed } from 'vue'
 import type { Aria2Task } from '@/lib/aria2/types'
 import type { TaskOp } from '@/lib/task-op'
@@ -10,7 +10,10 @@ const props = defineProps<{
   operate: (gid: string, op: TaskOp) => void
 }>()
 
-defineEmits<{ contextmenu: [gid: string, e: MouseEvent] }>()
+defineEmits<{
+  contextmenu: [gid: string, e: MouseEvent]
+  more: [gid: string, e: MouseEvent]
+}>()
 
 const store = useTaskStore()
 
@@ -65,8 +68,11 @@ function toggleAll(v: boolean) { v ? store.selectAllVisible() : store.clearSelec
             <a data-op="unpause" v-else-if="r.primary.op === 'unpause'" style="margin-right:8px;cursor:pointer" @click="operate(r.t.gid, r.primary!.op)">{{ r.primary.label }}</a>
             <a data-op="retry" v-else style="margin-right:8px;cursor:pointer" @click="operate(r.t.gid, r.primary!.op)">{{ r.primary.label }}</a>
           </template>
-          <a style="cursor:pointer" @click="operate(r.t.gid, 'remove')">删除</a>
-          <a data-op="more" style="margin-left:8px;cursor:pointer" @click="operate(r.t.gid, 'forcePause')">⋮</a>
+          <NPopconfirm @positive-click="operate(r.t.gid, 'remove')">
+            <template #trigger><a style="cursor:pointer">删除</a></template>
+            确认删除该任务？（已下载部分保留，可重试续传）
+          </NPopconfirm>
+          <a data-op="more" style="margin-left:8px;cursor:pointer" @click="$emit('more', r.t.gid, $event)">⋮</a>
         </td>
       </tr>
     </tbody>
