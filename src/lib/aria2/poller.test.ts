@@ -39,4 +39,36 @@ describe('Poller', () => {
     expect(onTick).toHaveBeenCalledTimes(2)
     p.stop()
   })
+
+  it('refreshNow triggers an immediate tick', async () => {
+    const onTick = vi.fn()
+    const p = new Poller(makeClient(0), onTick)
+    p.start()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(onTick).toHaveBeenCalledTimes(1)
+    onTick.mockClear()
+    p.refreshNow()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onTick).toHaveBeenCalledTimes(1)
+    p.stop()
+  })
+
+  it('does not re-enter tick while one is in flight', async () => {
+    let resolveTell!: () => void
+    const slowClient = {
+      tellActive: vi.fn(() => new Promise<any[]>(r => { resolveTell = () => r([]) })),
+      tellWaiting: vi.fn(async () => []),
+      tellStopped: vi.fn(async () => []),
+    } as unknown as Aria2Client
+    const onTick = vi.fn()
+    const p = new Poller(slowClient, onTick)
+    p.start()
+    await vi.advanceTimersByTimeAsync(1)
+    p.refreshNow()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(slowClient.tellActive).toHaveBeenCalledTimes(1)
+    resolveTell()
+    await vi.advanceTimersByTimeAsync(0)
+    p.stop()
+  })
 })
