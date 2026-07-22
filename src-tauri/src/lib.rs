@@ -25,6 +25,8 @@ pub fn run() {
                 };
                 let dir = handle.path().app_data_dir().unwrap_or_default();
                 let session = dir.join("aria2.session.gz");
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(&session, b"");
                 let cfg = new_config(dir, session);
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
