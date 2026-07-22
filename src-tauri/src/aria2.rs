@@ -74,6 +74,71 @@ pub async fn health_check(port: u16, secret: &str) -> bool {
     false
 }
 
+const MAX_RESTARTS: u32 = 3;
+
+pub struct Supervisor {
+    pub child: Option<Child>,
+    pub restarts: u32,
+    max_restarts: u32,
+}
+
+impl Supervisor {
+    pub fn new() -> Self {
+        Self { child: None, restarts: 0, max_restarts: MAX_RESTARTS }
+    }
+    pub fn restarts_count(&self) -> u32 { self.restarts }
+    pub fn max_restarts(&self) -> u32 { self.max_restarts }
+    pub fn can_restart(&self) -> bool { self.restarts < self.max_restarts }
+
+    /// spawn 子进程并健康检查；失败返回 false。
+    pub async fn start(&mut self, binary: &Path, cfg: &Aria2Config) -> bool {
+        match spawn(binary, cfg) {
+            Ok(c) => {
+                self.child = Some(c);
+                health_check(cfg.port, &cfg.secret).await
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// 若子进程已退出且未超上限，则重启。
+    pub async fn ensure_alive(&mut self, binary: &Path, cfg: &Aria2Config) -> bool {
+        let dead = match self.child.as_mut() {
+            None => true,
+            Some(c) => match c.try_wait() {
+                Ok(None) => false,
+                _ => true,
+            },
+        };
+        if dead {
+            if !self.can_restart() { return false; }
+            self.restarts += 1;
+            return self.start(binary, cfg).await;
+        }
+        true
+    }
+
+    /// 优雅停：发 aria2.shutdown，等待 ≤5s，超时强杀。
+    pub async fn shutdown(&mut self, port: u16, secret: &str) {
+        let url = rpc_http_url(port);
+        if let Ok(client) = reqwest::Client::builder().build() {
+            let body = serde_json::json!({
+                "jsonrpc":"2.0","id":1,"method":"aria2.shutdown",
+                "params":[format!("token:{secret}")]
+            });
+            let _ = client.post(&url).json(&body).send().await;
+        }
+        if let Some(mut c) = self.child.take() {
+            let start = std::time::Instant::now();
+            while start.elapsed() < std::time::Duration::from_secs(5) {
+                if c.try_wait().ok().flatten().is_some() { return; }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+            let _ = c.kill();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,5 +196,19 @@ mod tests {
     fn pick_free_port_for_test() -> u16 {
         std::net::TcpListener::bind("127.0.0.1:0")
             .unwrap().local_addr().unwrap().port()
+    }
+
+    #[test]
+    fn supervisor_starts_with_zero_restarts() {
+        let s = Supervisor::new();
+        assert_eq!(s.restarts_count(), 0);
+        assert_eq!(s.max_restarts(), 3);
+    }
+
+    #[test]
+    fn supervisor_respects_max_restarts() {
+        let mut s = Supervisor::new();
+        s.restarts = 3; // 模拟已达上限
+        assert!(!s.can_restart());
     }
 }
