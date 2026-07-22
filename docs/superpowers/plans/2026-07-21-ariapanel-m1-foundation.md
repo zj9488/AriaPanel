@@ -969,7 +969,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { Aria2Client } from './rpc-client'
 
 function fakeFetch(resp: unknown) {
-  return vi.fn(async () => ({
+  return vi.fn(async (_url: string, _init?: RequestInit) => ({
     ok: true,
     status: 200,
     json: async () => resp,
@@ -1116,25 +1116,29 @@ describe('Poller', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it('ticks at 1s when there are active tasks', async () => {
+  it('probes immediately then polls every 1s when there are active tasks', async () => {
     const onTick = vi.fn()
     const p = new Poller(makeClient(2), onTick)
     p.start()
-    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(1)
     expect(onTick).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1000)
     expect(onTick).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onTick).toHaveBeenCalledTimes(3)
     p.stop()
   })
 
-  it('ticks at 5s when idle', async () => {
+  it('slows to 5s cadence when idle after the bootstrap probe', async () => {
     const onTick = vi.fn()
     const p = new Poller(makeClient(0), onTick)
     p.start()
-    await vi.advanceTimersByTimeAsync(4000)
-    expect(onTick).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(1)
     expect(onTick).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(onTick).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onTick).toHaveBeenCalledTimes(2)
     p.stop()
   })
 })
@@ -1639,7 +1643,7 @@ function fmtBytes(s: string): string {
   const u = ['B/s', 'KB/s', 'MB/s', 'GB/s']
   let i = 0; let v = n
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return `${v.toFixed(1)} ${u[i]}`
+  return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
 }
 const rows = computed(() => props.tasks.map(t => ({ t, name: name(t), pct: pct(t) })))
 </script>
@@ -1685,8 +1689,8 @@ function submit() {
 `src/components/AppShell.vue`：
 ```vue
 <script setup lang="ts">
+import { NConfigProvider, darkTheme } from 'naive-ui'
 import { useTheme } from '@/composables/useTheme'
-import { darkTheme } from 'naive-ui'
 const { mode } = useTheme()
 </script>
 
@@ -1695,11 +1699,6 @@ const { mode } = useTheme()
     <slot />
   </NConfigProvider>
 </template>
-
-<script lang="ts">
-import { NConfigProvider } from 'naive-ui'
-export default { components: { NConfigProvider } }
-</script>
 ```
 
 `src/views/TaskListView.vue`：
@@ -1740,12 +1739,12 @@ async function onAdd(url: string) {
 为让 `inject('aria2-client')` 生效，需在 `useAria2` 内 `provide`。更新 `src/App.vue`：
 ```vue
 <script setup lang="ts">
-import { onMounted, provide, ref, type Ref } from 'vue'
+import { onMounted, provide, shallowRef, type Ref } from 'vue'
 import { useAria2 } from '@/composables/useAria2'
 import type { Aria2Client } from '@/lib/aria2/rpc-client'
 
 const aria = useAria2()
-const clientRef = ref<Aria2Client | null>(null)
+const clientRef = shallowRef<Aria2Client | null>(null)
 provide<Ref<Aria2Client | null>>('aria2-client', clientRef)
 onMounted(async () => {
   await aria.start()
