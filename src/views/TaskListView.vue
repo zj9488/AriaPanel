@@ -1,31 +1,28 @@
 <script setup lang="ts">
-import { computed, inject, type Ref } from 'vue'
+import { inject, type Ref } from 'vue'
 import AppShell from '@/components/AppShell.vue'
 import TaskTable from '@/components/TaskTable.vue'
 import AddUrlBar from '@/components/AddUrlBar.vue'
-import { useConnectionStore } from '@/stores/connection'
 import { useTaskStore } from '@/stores/task'
-import type { Aria2Client } from '@/lib/aria2/rpc-client'
+import type { Aria2Api } from '@/composables/useAria2'
+import type { TaskOp } from '@/lib/task-op'
 
-const conn = useConnectionStore()
 const tasks = useTaskStore()
-const client = inject<Ref<Aria2Client | null>>('aria2-client')!
-
-const list = computed(() => [...tasks.active, ...tasks.waiting, ...tasks.stopped])
+const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 
 async function onAdd(url: string) {
-  if (!client.value) return
-  await client.value.addUri([url])
+  const c = api.value?.client
+  if (!c) return
+  await c.addUri([url])
+  api.value?.refresh()
 }
+
+function operate(_gid: string, _op: TaskOp) {}
 </script>
 
 <template>
   <AppShell>
-    <div style="padding:8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--n-border-color,#eee)">
-      <strong>AriaPanel</strong>
-      <span style="margin-left:auto;font-size:12px;opacity:.7">{{ conn.status }}</span>
-    </div>
     <AddUrlBar :on-add="onAdd" />
-    <TaskTable :tasks="list" />
+    <TaskTable :tasks="tasks.visibleTasks" :operate="operate" />
   </AppShell>
 </template>
