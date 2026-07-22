@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { inject, type Ref } from 'vue'
+import { ref, inject, type Ref } from 'vue'
+import { useMessage } from 'naive-ui'
 import AppShell from '@/components/AppShell.vue'
+import Sidebar from '@/components/Sidebar.vue'
+import TopBar from '@/components/TopBar.vue'
+import BulkToolbar from '@/components/BulkToolbar.vue'
 import TaskTable from '@/components/TaskTable.vue'
+import TaskContextMenu from '@/components/TaskContextMenu.vue'
+import RetryDialog from '@/components/RetryDialog.vue'
 import AddUrlBar from '@/components/AddUrlBar.vue'
 import { useTaskStore } from '@/stores/task'
 import type { Aria2Api } from '@/composables/useAria2'
@@ -9,20 +15,87 @@ import type { TaskOp } from '@/lib/task-op'
 
 const tasks = useTaskStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')!
+const message = useMessage()
 
-async function onAdd(url: string) {
+const ctx = ref({ show: false, x: 0, y: 0, gid: '', status: 'active' as 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error' })
+const retry = ref({ show: false, gid: '', url: '' })
+
+function basename(p: string) { return p.split(/[\\/]/).pop() || p }
+
+async function operate(gid: string, op: TaskOp) {
   const c = api.value?.client
   if (!c) return
-  await c.addUri([url])
-  api.value?.refresh()
+  const t = tasks.tasks.get(gid)
+  try {
+    switch (op) {
+      case 'pause': await c.pause(gid); break
+      case 'unpause': await c.unpause(gid); break
+      case 'remove': await c.remove(gid); break
+      case 'forcePause': await c.forcePause(gid); break
+      case 'forceRemove': await c.forceRemove(gid); break
+      case 'copyLink':
+        if (t) await navigator.clipboard?.writeText(t.files[0]?.uris[0]?.uri ?? '')
+        return
+      case 'retry': {
+        if (!t) return
+        const url = t.files[0]?.uris[0]?.uri ?? ''
+        const out = basename(t.files[0]?.path ?? '')
+        await c.remove(gid)
+        await c.addUri([url], { dir: t.dir, out })
+        break
+      }
+      case 'retryWithUrl': {
+        if (!t) return
+        retry.value = { show: true, gid, url: t.files[0]?.uris[0]?.uri ?? '' }
+        return
+      }
+    }
+    api.value!.refresh()
+  } catch (e) {
+    message.error(`操作失败：${String(e)}`)
+    api.value!.refresh()
+  }
 }
 
-function operate(_gid: string, _op: TaskOp) {}
+async function submitRetry(url: string) {
+  const c = api.value?.client
+  const t = tasks.tasks.get(retry.value.gid)
+  if (!c || !t) return
+  const out = basename(t.files[0]?.path ?? '')
+  try {
+    await c.remove(retry.value.gid)
+    await c.addUri([url], { dir: t.dir, out })
+    api.value!.refresh()
+  } catch (e) {
+    message.error(`重试失败：${String(e)}`)
+    api.value!.refresh()
+  }
+}
+
+function onContextmenu(gid: string, e: MouseEvent) {
+  const t = tasks.tasks.get(gid)
+  if (!t) return
+  ctx.value = { show: true, x: e.clientX, y: e.clientY, gid, status: t.status }
+}
 </script>
 
 <template>
   <AppShell>
-    <AddUrlBar :on-add="onAdd" />
-    <TaskTable :tasks="tasks.visibleTasks" :operate="operate" />
+    <TopBar />
+    <div style="display:flex;flex:1;min-height:0">
+      <Sidebar />
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <BulkToolbar />
+        <AddUrlBar :on-add="(u:string) => api?.client?.addUri([u]).then(()=>api?.refresh()).catch((e)=>message.error(String(e)))" />
+        <div style="flex:1;overflow:auto" @contextmenu.prevent>
+          <TaskTable :tasks="tasks.visibleTasks" :operate="operate" @contextmenu="onContextmenu" />
+        </div>
+      </div>
+    </div>
+    <TaskContextMenu
+      :show="ctx.show" :x="ctx.x" :y="ctx.y" :status="ctx.status"
+      @select="(op) => operate(ctx.gid, op)" @close="ctx.show = false"
+    />
+    <RetryDialog v-model:show="retry.show" :original-url="retry.url" @submit="submitRetry" />
   </AppShell>
 </template>
