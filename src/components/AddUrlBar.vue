@@ -3,11 +3,12 @@ import { NButton, NInput } from 'naive-ui'
 import { ref, watch } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 
-const props = defineProps<{ onAdd: (url: string, dir: string, filename: string) => void; defaultDir: string }>()
+const props = defineProps<{ onAdd: (url: string, dir: string, filename: string, proxy: string) => void; defaultDir: string }>()
 
 const url = ref('')
 const dir = ref(props.defaultDir)
 const filename = ref('')
+const proxy = ref('')
 
 watch(() => props.defaultDir, v => { dir.value = v })
 
@@ -26,7 +27,7 @@ async function browse() {
 function submit() {
   const v = url.value.trim()
   if (!v) return
-  props.onAdd(v, dir.value.trim() || props.defaultDir, filename.value.trim())
+  props.onAdd(v, dir.value.trim() || props.defaultDir, filename.value.trim(), proxy.value.trim())
   url.value = ''
   filename.value = ''
 }
@@ -42,6 +43,7 @@ function submit() {
       <NInput v-model:value="dir" size="small" placeholder="保存路径" />
       <NButton size="small" quaternary @click="browse">浏览</NButton>
       <NInput v-model:value="filename" size="small" placeholder="文件名（可选）" style="width:180px" />
+      <NInput v-model:value="proxy" size="small" placeholder="代理（可选，如 http://127.0.0.1:7890）" style="width:240px" />
     </div>
   </div>
 </template>
