@@ -17,7 +17,7 @@ const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 const message = useMessage()
 
 const ctx = ref({ show: false, x: 0, y: 0, gid: '', status: 'active' as 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error', isBittorrent: false })
-const retry = ref({ show: false, gid: '', url: '' })
+const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '' })
 
 function basename(p: string) { return p.split(/[\\/]/).pop() || p }
 
@@ -45,7 +45,7 @@ async function operate(gid: string, op: TaskOp) {
       }
       case 'retryWithUrl': {
         if (!t) return
-        retry.value = { show: true, gid, url: t.files[0]?.uris[0]?.uri ?? '' }
+        retry.value = { show: true, gid, url: t.files[0]?.uris[0]?.uri ?? '', dir: t.dir, filename: basename(t.files[0]?.path ?? '') }
         return
       }
     }
@@ -56,14 +56,16 @@ async function operate(gid: string, op: TaskOp) {
   }
 }
 
-async function submitRetry(url: string) {
+async function submitRetry(url: string, dir: string, filename: string, proxy: string, split: number) {
   const c = api.value?.client
   const t = tasks.tasks.get(retry.value.gid)
   if (!c || !t) return
-  const out = basename(t.files[0]?.path ?? '')
+  const options: Record<string, string> = { dir: dir || t.dir, split: String(split), 'max-connection-per-server': String(split) }
+  if (filename) options.out = filename
+  if (proxy) options['all-proxy'] = proxy
   try {
     await c.purge(retry.value.gid, t.status)
-    await c.addUri([url], { dir: t.dir, out })
+    await c.addUri([url], options)
     api.value!.refresh()
   } catch (e) {
     message.error(`重试失败：${String(e)}`)
@@ -109,6 +111,6 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
       :show="ctx.show" :x="ctx.x" :y="ctx.y" :status="ctx.status" :is-bittorrent="ctx.isBittorrent"
       @select="(op) => operate(ctx.gid, op)" @close="ctx.show = false"
     />
-    <RetryDialog v-model:show="retry.show" :original-url="retry.url" @submit="submitRetry" />
+    <RetryDialog v-model:show="retry.show" :original-url="retry.url" :original-dir="retry.dir" :original-filename="retry.filename" @submit="submitRetry" />
   </div>
 </template>
