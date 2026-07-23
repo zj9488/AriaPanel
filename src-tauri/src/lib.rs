@@ -7,11 +7,24 @@ use aria2::{binary_path, new_config, rpc_http_url};
 use commands::{AppState, RpcEndpoint};
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let allow = window.app_handle().try_state::<AppState>()
+                    .map(|s| s.allow_exit.load(std::sync::atomic::Ordering::Relaxed))
+                    .unwrap_or(false);
+                if !allow {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
+        })
         .manage(AppState {
             endpoint: Mutex::new(None),
             port: Mutex::new(None),
@@ -20,6 +33,37 @@ pub fn run() {
             allow_exit: std::sync::atomic::AtomicBool::new(false),
         })
         .setup(|app| {
+            let show_i = MenuItem::with_id(app, "tray_show", "显示主窗口", true, None::<&str>)?;
+            let pause_i = MenuItem::with_id(app, "tray_pause", "全部暂停", true, None::<&str>)?;
+            let resume_i = MenuItem::with_id(app, "tray_resume", "全部继续", true, None::<&str>)?;
+            let sep = PredefinedMenuItem::separator(app)?;
+            let quit_i = MenuItem::with_id(app, "tray_quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &pause_i, &resume_i, &sep, &quit_i])?;
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().cloned().ok_or("no icon")?)
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "tray_show" => {
+                        if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
+                    }
+                    "tray_pause" => { let _ = app.emit("tray://pause-all", ()); }
+                    "tray_resume" => { let _ = app.emit("tray://resume-all", ()); }
+                    "tray_quit" => {
+                        if let Some(s) = app.try_state::<AppState>() {
+                            s.allow_exit.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        if let Some(w) = app.get_webview_window("main") { let _ = w.close(); }
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
+                    }
+                })
+                .build(app)?;
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let binary = match binary_path(&handle) {
