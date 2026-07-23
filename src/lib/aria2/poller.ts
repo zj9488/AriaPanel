@@ -4,6 +4,7 @@ import type { Aria2Task } from './types'
 export class Poller {
   private timer: ReturnType<typeof setTimeout> | null = null
   private active = false
+  private inFlight = false
   constructor(
     private client: Aria2Client,
     private onTick: (a: Aria2Task[], w: Aria2Task[], s: Aria2Task[]) => void,
@@ -12,11 +13,18 @@ export class Poller {
   start() { this.schedule(0) }
   stop() { if (this.timer) clearTimeout(this.timer); this.timer = null }
 
+  refreshNow() {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null }
+    this.schedule(0)
+  }
+
   private schedule(ms: number) {
     this.timer = setTimeout(() => { this.tick() }, ms)
   }
 
   private async tick() {
+    if (this.inFlight) return
+    this.inFlight = true
     try {
       const [a, w, s] = await Promise.all([
         this.client.tellActive(),
@@ -27,7 +35,9 @@ export class Poller {
       this.onTick(a, w, s)
     } catch {
       /* 网络瞬断忽略，下次重试 */
+    } finally {
+      this.inFlight = false
+      this.schedule(this.active ? 1000 : 5000)
     }
-    this.schedule(this.active ? 1000 : 5000)
   }
 }

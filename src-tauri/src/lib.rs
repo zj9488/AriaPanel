@@ -10,6 +10,7 @@ use tauri::{Emitter, Manager};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
             endpoint: Mutex::new(None),
             port: Mutex::new(None),
@@ -39,7 +40,7 @@ pub fn run() {
                 };
                 if ok {
                     if let Ok(mut g) = st.endpoint.lock() {
-                        *g = Some(RpcEndpoint { url: rpc_http_url(port), secret: secret.clone() });
+                        *g = Some(RpcEndpoint { url: rpc_http_url(port), secret: secret.clone(), dir: cfg.dir.display().to_string() });
                     }
                     if let Ok(mut p) = st.port.lock() { *p = Some(port); }
                     if let Ok(mut s) = st.secret.lock() { *s = Some(secret); }

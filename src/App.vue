@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { onMounted, provide, shallowRef, type Ref } from 'vue'
-import { useAria2 } from '@/composables/useAria2'
-import type { Aria2Client } from '@/lib/aria2/rpc-client'
+import { useAria2, type Aria2Api } from '@/composables/useAria2'
+import AppShell from '@/components/AppShell.vue'
 
 const aria = useAria2()
-const clientRef = shallowRef<Aria2Client | null>(null)
-provide<Ref<Aria2Client | null>>('aria2-client', clientRef)
+const apiRef = shallowRef<Aria2Api | null>(null)
+provide<Ref<Aria2Api | null>>('aria2-api', apiRef)
 onMounted(async () => {
   await aria.start()
-  clientRef.value = aria.getClient()
+  apiRef.value = aria.getApi()
 })
 </script>
 
 <template>
-  <router-view />
+  <AppShell>
+    <router-view />
+  </AppShell>
 </template>

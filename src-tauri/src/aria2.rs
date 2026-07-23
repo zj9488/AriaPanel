@@ -23,12 +23,14 @@ pub fn build_args(cfg: &Aria2Config) -> Vec<String> {
     vec![
         "--enable-rpc".into(),
         "--rpc-listen-all=false".into(),
-        "--rpc-allow-origin-all=false".into(),
+        "--rpc-allow-origin-all=true".into(),
         format!("--rpc-listen-port={}", cfg.port),
         format!("--rpc-secret={}", cfg.secret),
         format!("--dir={}", cfg.dir.display()),
         "--continue=true".into(),
         "--file-allocation=none".into(),
+        "--auto-file-renaming=false".into(),
+        "--allow-overwrite=true".into(),
         format!("--input-file={}", cfg.session.display()),
         format!("--save-session={}", cfg.session.display()),
         "--quiet=true".into(),
@@ -158,7 +160,7 @@ mod tests {
         assert!(a.contains(&"--enable-rpc".to_string()));
         assert!(a.contains(&"--rpc-listen-all=false".to_string()));
         assert!(a.contains(&"--rpc-listen-port=50000".to_string()));
-        assert!(a.contains(&"--rpc-allow-origin-all=false".to_string()));
+        assert!(a.contains(&"--rpc-allow-origin-all=true".to_string()));
     }
 
     #[test]
@@ -169,6 +171,13 @@ mod tests {
         assert!(a.contains(&"--continue=true".to_string()));
         assert!(a.contains(&"--input-file=/s/session.gz".to_string()));
         assert!(a.contains(&"--save-session=/s/session.gz".to_string()));
+    }
+
+    #[test]
+    fn build_args_enables_resume_safety() {
+        let a = build_args(&cfg());
+        assert!(a.contains(&"--auto-file-renaming=false".to_string()));
+        assert!(a.contains(&"--allow-overwrite=true".to_string()));
     }
 
     #[tokio::test]

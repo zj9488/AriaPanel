@@ -31,4 +31,39 @@ describe('Aria2Client', () => {
     const r = await c.tellActive()
     expect(r).toEqual([{ gid: 'g1' }])
   })
+
+  it('pause sends gid as second param', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: 'OK' })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.pause('g1')
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.method).toBe('aria2.pause')
+    expect(body.params).toEqual(['token:S', 'g1'])
+  })
+
+  it('pauseAll sends no extra params', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: 'OK' })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.pauseAll()
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.method).toBe('aria2.pauseAll')
+    expect(body.params).toEqual(['token:S'])
+  })
+
+  it('addUri passes options as third param', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: 'gid-new' })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.addUri(['http://x/f.bin'], { dir: '/dl', out: 'f.bin' })
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.method).toBe('aria2.addUri')
+    expect(body.params).toEqual(['token:S', ['http://x/f.bin'], { dir: '/dl', out: 'f.bin' }])
+  })
+
+  it('addUri without options omits third param', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: 'gid-new' })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.addUri(['http://x/f.bin'])
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.params).toEqual(['token:S', ['http://x/f.bin']])
+  })
 })
