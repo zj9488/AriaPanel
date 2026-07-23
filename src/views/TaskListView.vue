@@ -77,10 +77,10 @@ function openContextMenu(gid: string, e: MouseEvent) {
   ctx.value = { show: true, x: e.clientX, y: e.clientY, gid, status: t.status, isBittorrent: !!t.bittorrent }
 }
 
-async function onAdd(url: string, dir: string, filename: string, proxy: string) {
+async function onAdd(url: string, dir: string, filename: string, proxy: string, split: number) {
   const c = api.value?.client
   if (!c) return
-  const options: Record<string, string> = { dir }
+  const options: Record<string, string> = { dir, split: String(split), 'max-connection-per-server': String(split) }
   if (filename) options.out = filename
   if (proxy) options['all-proxy'] = proxy
   try {
