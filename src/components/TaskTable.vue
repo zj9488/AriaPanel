@@ -14,6 +14,7 @@ const props = defineProps<{
 defineEmits<{
   contextmenu: [gid: string, e: MouseEvent]
   more: [gid: string, e: MouseEvent]
+  rowClick: [gid: string]
 }>()
 
 const store = useTaskStore()
@@ -90,14 +91,14 @@ function toggleAll(v: boolean) { v ? store.selectAllVisible() : store.clearSelec
       </tr>
     </thead>
     <tbody>
-      <tr v-for="r in rows" :key="r.t.gid" @contextmenu.prevent="$emit('contextmenu', r.t.gid, $event)">
-        <td><NCheckbox :checked="store.selection.has(r.t.gid)" @update:checked="store.toggleSelect(r.t.gid)" /></td>
+      <tr v-for="r in rows" :key="r.t.gid" @click="$emit('rowClick', r.t.gid)" @contextmenu.prevent="$emit('contextmenu', r.t.gid, $event)">
+        <td @click.stop><NCheckbox :checked="store.selection.has(r.t.gid)" @update:checked="store.toggleSelect(r.t.gid)" /></td>
         <td>{{ r.name }}</td>
         <td style="width:180px"><NProgress :percentage="r.pct" :height="10" /></td>
         <td style="width:90px">{{ fmtSize(r.t.totalLength) }}</td>
         <td>{{ fmtBytes(r.t.downloadSpeed) }}</td>
         <td>{{ r.t.status }}</td>
-        <td>
+        <td @click.stop>
           <template v-if="r.primary">
             <a data-op="pause" v-if="r.primary.op === 'pause'" style="margin-right:8px;cursor:pointer" @click="operate(r.t.gid, r.primary!.op)">{{ r.primary.label }}</a>
             <a data-op="unpause" v-else-if="r.primary.op === 'unpause'" style="margin-right:8px;cursor:pointer" @click="operate(r.t.gid, r.primary!.op)">{{ r.primary.label }}</a>

@@ -11,6 +11,7 @@ function options() {
   const base: { label: string; key: TaskOp }[] = [{ label: '复制链接', key: 'copyLink' }]
   if (props.status === 'active') base.push({ label: '暂停', key: 'pause' })
   if (props.status === 'paused' || props.status === 'waiting') base.push({ label: '恢复', key: 'unpause' })
+  base.push({ label: '打开文件夹', key: 'openFolder' })
   base.push({ label: '强制暂停', key: 'forcePause' })
   if (!props.isBittorrent) base.push({ label: '更换链接重试', key: 'retryWithUrl' })
   base.push({ label: '删除', key: 'remove' })

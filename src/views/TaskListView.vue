@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, inject, type Ref } from 'vue'
-import { useMessage } from 'naive-ui'
+import { ref, computed, inject, watch, onUnmounted, type Ref } from 'vue'
+import { useMessage, useNotification } from 'naive-ui'
 import Sidebar from '@/components/Sidebar.vue'
 import TopBar from '@/components/TopBar.vue'
 import BulkToolbar from '@/components/BulkToolbar.vue'
@@ -10,8 +10,14 @@ import RetryDialog from '@/components/RetryDialog.vue'
 import AddUrlBar from '@/components/AddUrlBar.vue'
 import { useTaskStore } from '@/stores/task'
 import { usePrefStore } from '@/stores/preferences'
+import { invoke } from '@tauri-apps/api/core'
 import type { Aria2Api } from '@/composables/useAria2'
 import type { TaskOp } from '@/lib/task-op'
+import TaskDetailDrawer from '@/components/TaskDetailDrawer.vue'
+import SettingsModal from '@/components/SettingsModal.vue'
+import { useClipboardWatcher } from '@/composables/useClipboardWatcher'
+import { useWindowGeometry } from '@/composables/useWindowGeometry'
+import type { Aria2TaskDetail } from '@/lib/aria2/types'
 
 const tasks = useTaskStore()
 const prefs = usePrefStore()
@@ -40,9 +46,42 @@ const displayTasks = computed(() => {
 })
 const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 const message = useMessage()
+const notification = useNotification()
 
 const ctx = ref({ show: false, x: 0, y: 0, gid: '', status: 'active' as 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error', isBittorrent: false })
-const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '', proxy: '', split: 5 })
+  const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '', proxy: '', split: 5 })
+
+const detail = ref<Aria2TaskDetail | null>(null)
+const detailShow = ref(false)
+const settingsShow = ref(false)
+
+let detailTimer: ReturnType<typeof setInterval> | null = null
+async function fetchDetail() {
+  if (!tasks.selectedGid) return
+  const c = api?.value?.client
+  if (!c) return
+  try { detail.value = await c.tellStatus(tasks.selectedGid) } catch { }
+}
+watch(() => tasks.selectedGid, gid => {
+  if (gid) {
+    detailShow.value = true
+    fetchDetail()
+    detailTimer = setInterval(fetchDetail, 2000)
+  } else {
+    detailShow.value = false
+    detail.value = null
+    if (detailTimer) { clearInterval(detailTimer); detailTimer = null }
+  }
+})
+onUnmounted(() => { if (detailTimer) clearInterval(detailTimer) })
+
+const { start: startClipboard } = useClipboardWatcher(notification, (url) => {
+  const event = new CustomEvent('clipboard-url', { detail: url })
+  window.dispatchEvent(event)
+})
+startClipboard()
+const { start: startGeo } = useWindowGeometry()
+startGeo()
 
 function basename(p: string) { return p.split(/[\\/]/).pop() || p }
 
@@ -60,6 +99,12 @@ async function operate(gid: string, op: TaskOp) {
       case 'copyLink':
         if (t) await navigator.clipboard?.writeText(t.files[0]?.uris[0]?.uri ?? '')
         return
+      case 'openFolder': {
+        if (!t) return
+        const fp = t.files[0]?.path || t.dir
+        await invoke('open_folder', { path: fp })
+        return
+      }
       case 'retry': {
         if (!t) return
         const url = t.files[0]?.uris[0]?.uri ?? ''
@@ -129,14 +174,14 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
 
 <template>
   <div style="height:100vh;display:flex;flex-direction:column">
-    <TopBar />
+    <TopBar @settings="settingsShow = true" />
     <div style="display:flex;flex:1;min-height:0">
       <Sidebar />
       <div style="flex:1;display:flex;flex-direction:column;min-width:0">
         <BulkToolbar />
         <AddUrlBar :default-dir="api?.dir ?? ''" :on-add="onAdd" />
         <div style="flex:1;overflow:auto" @contextmenu.prevent>
-          <TaskTable :tasks="displayTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" />
+          <TaskTable :tasks="displayTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" @row-click="(gid: string) => tasks.selectedGid = gid" />
         </div>
       </div>
     </div>
@@ -145,5 +190,7 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
       @select="(op) => operate(ctx.gid, op)" @close="ctx.show = false"
     />
     <RetryDialog v-model:show="retry.show" :original-url="retry.url" :original-dir="retry.dir" :original-filename="retry.filename" :original-proxy="retry.proxy" :original-split="retry.split" @submit="submitRetry" />
+    <TaskDetailDrawer v-model:show="detailShow" :detail="detail" :operate="operate" />
+    <SettingsModal v-model:show="settingsShow" @saved="api?.refresh()" />
   </div>
 </template>
