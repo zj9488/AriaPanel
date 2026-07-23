@@ -6,6 +6,7 @@ use tauri::State;
 pub struct RpcEndpoint {
     pub url: String,
     pub secret: String,
+    pub dir: String,
 }
 
 pub struct AppState {

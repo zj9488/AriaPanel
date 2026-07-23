@@ -9,6 +9,7 @@ import { useTaskStore } from '@/stores/task'
 export interface Aria2Api {
   client: Aria2Client
   refresh: () => void
+  dir: string
 }
 
 export function useAria2() {
@@ -17,6 +18,7 @@ export function useAria2() {
   let client: Aria2Client | null = null
   let poller: Poller | null = null
   let ws: WsNotifier | null = null
+  let downloadDir = ''
 
   async function start() {
     conn.setConnecting()
@@ -26,6 +28,7 @@ export function useAria2() {
     if (!ep) return
     const wsUrl = ep.url.replace(/^http/, 'ws')
     client = new Aria2Client(ep.url, ep.secret)
+    downloadDir = ep.dir
     conn.setConnected()
     poller = new Poller(client, (a, w, s) => { tasks.apply(a, w, s); refreshStat() })
     poller.start()
@@ -33,9 +36,9 @@ export function useAria2() {
     ws.start()
   }
 
-  async function waitForEndpoint(): Promise<{ url: string; secret: string } | null> {
+  async function waitForEndpoint(): Promise<{ url: string; secret: string; dir: string } | null> {
     for (let i = 0; i < 100; i++) {
-      const ep = await invoke<{ url: string; secret: string } | null>('get_rpc_endpoint')
+      const ep = await invoke<{ url: string; secret: string; dir: string } | null>('get_rpc_endpoint')
       if (ep) return ep
       await new Promise(r => setTimeout(r, 100))
     }
@@ -50,7 +53,7 @@ export function useAria2() {
 
   function getApi(): Aria2Api | null {
     if (!client || !poller) return null
-    return { client, refresh: () => poller!.refreshNow() }
+    return { client, refresh: () => poller!.refreshNow(), dir: downloadDir }
   }
 
   return { start, getApi }

@@ -4,7 +4,7 @@ import type { TaskOp } from '@/lib/task-op'
 
 type TaskStatus = 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error'
 
-const props = defineProps<{ show: boolean; x: number; y: number; status: TaskStatus }>()
+const props = defineProps<{ show: boolean; x: number; y: number; status: TaskStatus; isBittorrent: boolean }>()
 const emit = defineEmits<{ select: [op: TaskOp]; close: [] }>()
 
 function options() {
@@ -12,7 +12,7 @@ function options() {
   if (props.status === 'active') base.push({ label: '暂停', key: 'pause' })
   if (props.status === 'paused' || props.status === 'waiting') base.push({ label: '恢复', key: 'unpause' })
   base.push({ label: '强制暂停', key: 'forcePause' })
-  base.push({ label: '更换链接重试', key: 'retryWithUrl' })
+  if (!props.isBittorrent) base.push({ label: '更换链接重试', key: 'retryWithUrl' })
   base.push({ label: '删除', key: 'remove' })
   base.push({ label: '强制删除', key: 'forceRemove' })
   return base

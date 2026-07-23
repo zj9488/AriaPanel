@@ -16,7 +16,7 @@ const tasks = useTaskStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 const message = useMessage()
 
-const ctx = ref({ show: false, x: 0, y: 0, gid: '', status: 'active' as 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error' })
+const ctx = ref({ show: false, x: 0, y: 0, gid: '', status: 'active' as 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error', isBittorrent: false })
 const retry = ref({ show: false, gid: '', url: '' })
 
 function basename(p: string) { return p.split(/[\\/]/).pop() || p }
@@ -74,7 +74,20 @@ async function submitRetry(url: string) {
 function openContextMenu(gid: string, e: MouseEvent) {
   const t = tasks.tasks.get(gid)
   if (!t) return
-  ctx.value = { show: true, x: e.clientX, y: e.clientY, gid, status: t.status }
+  ctx.value = { show: true, x: e.clientX, y: e.clientY, gid, status: t.status, isBittorrent: !!t.bittorrent }
+}
+
+async function onAdd(url: string, dir: string, filename: string) {
+  const c = api.value?.client
+  if (!c) return
+  const options: Record<string, string> = { dir }
+  if (filename) options.out = filename
+  try {
+    await c.addUri([url], options)
+    api.value!.refresh()
+  } catch (e) {
+    message.error(`添加失败：${String(e)}`)
+  }
 }
 </script>
 
@@ -85,14 +98,14 @@ function openContextMenu(gid: string, e: MouseEvent) {
       <Sidebar />
       <div style="flex:1;display:flex;flex-direction:column;min-width:0">
         <BulkToolbar />
-        <AddUrlBar :on-add="(u:string) => api?.client?.addUri([u]).then(()=>api?.refresh()).catch((e)=>message.error(String(e)))" />
+        <AddUrlBar :default-dir="api?.dir ?? ''" :on-add="onAdd" />
         <div style="flex:1;overflow:auto" @contextmenu.prevent>
           <TaskTable :tasks="tasks.visibleTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" />
         </div>
       </div>
     </div>
     <TaskContextMenu
-      :show="ctx.show" :x="ctx.x" :y="ctx.y" :status="ctx.status"
+      :show="ctx.show" :x="ctx.x" :y="ctx.y" :status="ctx.status" :is-bittorrent="ctx.isBittorrent"
       @select="(op) => operate(ctx.gid, op)" @close="ctx.show = false"
     />
     <RetryDialog v-model:show="retry.show" :original-url="retry.url" @submit="submitRetry" />

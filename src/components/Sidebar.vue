@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject, type Ref } from 'vue'
 import { useTaskStore, type TaskFilter } from '@/stores/task'
+import type { Aria2Api } from '@/composables/useAria2'
 
 const tasks = useTaskStore()
+const api = inject<Ref<Aria2Api | null>>('aria2-api')
 
 const items = computed(() => [
   { key: 'all' as TaskFilter, label: '全部', count: tasks.active.length + tasks.waiting.length + tasks.stopped.length },
@@ -13,7 +15,7 @@ const items = computed(() => [
 </script>
 
 <template>
-  <nav style="width:170px;flex-shrink:0;border-right:1px solid var(--n-border-color,#eee);padding:8px 0">
+  <nav style="width:170px;flex-shrink:0;border-right:1px solid var(--n-border-color,#eee);padding:8px 0;display:flex;flex-direction:column">
     <button
       v-for="it in items" :key="it.key"
       @click="tasks.setFilter(it.key)"
@@ -29,5 +31,8 @@ const items = computed(() => [
     </button>
     <div style="margin-top:16px;padding:0 14px;opacity:.4;font-size:12px">分类（M3）</div>
     <div style="padding:0 14px;opacity:.4;font-size:12px">速度统计（M3）</div>
+    <div style="margin-top:auto;padding:8px 14px 0;font-size:11px;opacity:.5;word-break:break-all">
+      保存到：<br>{{ api?.dir ?? '…' }}
+    </div>
   </nav>
 </template>
