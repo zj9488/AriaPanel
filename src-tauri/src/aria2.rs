@@ -23,7 +23,7 @@ pub fn build_args(cfg: &Aria2Config) -> Vec<String> {
     vec![
         "--enable-rpc".into(),
         "--rpc-listen-all=false".into(),
-        "--rpc-allow-origin-all=false".into(),
+        "--rpc-allow-origin-all=true".into(),
         format!("--rpc-listen-port={}", cfg.port),
         format!("--rpc-secret={}", cfg.secret),
         format!("--dir={}", cfg.dir.display()),
@@ -160,7 +160,7 @@ mod tests {
         assert!(a.contains(&"--enable-rpc".to_string()));
         assert!(a.contains(&"--rpc-listen-all=false".to_string()));
         assert!(a.contains(&"--rpc-listen-port=50000".to_string()));
-        assert!(a.contains(&"--rpc-allow-origin-all=false".to_string()));
+        assert!(a.contains(&"--rpc-allow-origin-all=true".to_string()));
     }
 
     #[test]
