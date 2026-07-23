@@ -25,17 +25,26 @@ pub fn run() {
                     Ok(p) => p,
                     Err(e) => { eprintln!("aria2 binary not found: {e}"); return; }
                 };
-                let dir = handle.path().app_data_dir().unwrap_or_default();
-                let session = dir.join("aria2.session.gz");
-                let _ = std::fs::create_dir_all(&dir);
+                let data_dir = handle.path().app_data_dir().unwrap_or_default();
+                let _ = std::fs::create_dir_all(&data_dir);
+                let session = data_dir.join("aria2.session.gz");
                 let _ = std::fs::write(&session, b"");
-                let cfg = new_config(dir, session);
+                let settings_path = settings::settings_path(&data_dir);
+                let mut settings = settings::load_settings(&settings_path);
+                let dir = if settings.dir.is_empty() { data_dir.join("downloads") } else { std::path::PathBuf::from(&settings.dir) };
+                let _ = std::fs::create_dir_all(&dir);
+                let cfg = new_config(dir, session, &settings);
+                if settings.port.is_none() || settings.secret.is_none() {
+                    settings.port = Some(cfg.port);
+                    settings.secret = Some(cfg.secret.clone());
+                    settings::save_to_disk(&settings_path, &settings);
+                }
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
                 let st = match handle.try_state::<AppState>() { Some(s) => s, None => return };
                 let ok = {
                     let mut sup = std::mem::replace(&mut *st.supervisor.lock().unwrap(), aria2::Supervisor::new());
-                    let result = sup.start(&binary, &cfg).await;
+                    let result = sup.start(&binary, &cfg, &settings).await;
                     let _ = std::mem::replace(&mut *st.supervisor.lock().unwrap(), sup);
                     result
                 };
