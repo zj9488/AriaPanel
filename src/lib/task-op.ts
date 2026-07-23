@@ -1,3 +1,3 @@
 export type TaskOp =
   | 'pause' | 'unpause' | 'remove' | 'forcePause' | 'forceRemove'
-  | 'retry' | 'retryWithUrl' | 'copyLink'
+  | 'retry' | 'retryWithUrl' | 'copyLink' | 'openFolder'
