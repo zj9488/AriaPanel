@@ -1,4 +1,5 @@
 pub mod aria2;
+pub mod settings;
 pub mod commands;
 pub mod secret;
 
