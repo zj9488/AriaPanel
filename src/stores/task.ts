@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowReactive } from 'vue'
+import { computed, ref, shallowReactive, watch } from 'vue'
 import type { Aria2Task } from '@/lib/aria2/types'
 
 export type TaskFilter = 'all' | 'active' | 'waiting' | 'stopped'
@@ -8,7 +8,9 @@ export const useTaskStore = defineStore('task', () => {
   const tasks = shallowReactive(new Map<string, Aria2Task>())
   const order = ref<string[]>([])
   const selection = ref<Set<string>>(new Set())
-  const filter = ref<TaskFilter>('all')
+  const filter = ref<TaskFilter>(localStorage.getItem('ap:filter') as TaskFilter ?? 'all')
+  watch(filter, v => localStorage.setItem('ap:filter', v), { flush: 'sync' })
+  const selectedGid = ref<string | null>(null)
 
   const active = computed(() => order.value.map(g => tasks.get(g)!).filter(t => t && t.status === 'active'))
   const waiting = computed(() => order.value.map(g => tasks.get(g)!).filter(t => t && (t.status === 'waiting' || t.status === 'paused')))
@@ -54,7 +56,7 @@ export const useTaskStore = defineStore('task', () => {
   function setFilter(f: TaskFilter) { filter.value = f }
 
   return {
-    tasks, order, selection, filter, active, waiting, stopped, visibleTasks,
+    tasks, order, selection, filter, selectedGid, active, waiting, stopped, visibleTasks,
     apply, upsert, clear, toggleSelect, selectMany, selectAllVisible, clearSelection, setFilter,
   }
 })

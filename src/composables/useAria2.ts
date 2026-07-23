@@ -56,5 +56,17 @@ export function useAria2() {
     return { client, refresh: () => poller!.refreshNow(), dir: downloadDir }
   }
 
-  return { start, getApi }
+  function reconnect(endpoint: { url: string; secret: string; dir: string }) {
+    poller?.stop()
+    ws?.stop()
+    client = new Aria2Client(endpoint.url, endpoint.secret)
+    downloadDir = endpoint.dir
+    const wsUrl = endpoint.url.replace(/^http/, 'ws')
+    poller = new Poller(client, (a, w, s) => { tasks.apply(a, w, s); refreshStat() })
+    poller.start()
+    ws = new WsNotifier(wsUrl, endpoint.secret, () => {})
+    ws.start()
+  }
+
+  return { start, getApi, reconnect }
 }
