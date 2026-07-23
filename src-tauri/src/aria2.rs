@@ -137,6 +137,12 @@ impl Supervisor {
         true
     }
 
+    pub async fn restart(&mut self, binary: &Path, old_port: u16, old_secret: &str, cfg: &Aria2Config, settings: &Settings) -> bool {
+        self.shutdown(old_port, old_secret).await;
+        self.restarts = 0;
+        self.start(binary, cfg, settings).await
+    }
+
     /// 优雅停：发 aria2.shutdown，等待 ≤5s，超时强杀。
     pub async fn shutdown(&mut self, port: u16, secret: &str) {
         let url = rpc_http_url(port);

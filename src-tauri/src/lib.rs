@@ -17,6 +17,7 @@ pub fn run() {
             port: Mutex::new(None),
             secret: Mutex::new(None),
             supervisor: Mutex::new(aria2::Supervisor::new()),
+            allow_exit: std::sync::atomic::AtomicBool::new(false),
         })
         .setup(|app| {
             let handle = app.handle().clone();
@@ -61,7 +62,12 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![commands::get_rpc_endpoint])
+        .invoke_handler(tauri::generate_handler![
+            commands::get_rpc_endpoint,
+            commands::get_settings,
+            commands::save_settings,
+            commands::open_folder,
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
