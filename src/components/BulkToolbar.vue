@@ -13,7 +13,10 @@ async function deleteSelected() {
   if (!c) return
   const gids = [...tasks.selection]
   try {
-    for (const gid of gids) await c.remove(gid)
+    for (const gid of gids) {
+      const t = tasks.tasks.get(gid)
+      await c.purge(gid, t?.status ?? 'active')
+    }
     api.value!.refresh()
   } catch (e) {
     message.error(`删除失败：${String(e)}`)

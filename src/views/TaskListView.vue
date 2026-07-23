@@ -29,9 +29,9 @@ async function operate(gid: string, op: TaskOp) {
     switch (op) {
       case 'pause': await c.pause(gid); break
       case 'unpause': await c.unpause(gid); break
-      case 'remove': await c.remove(gid); break
+      case 'remove': await c.purge(gid, t?.status ?? 'active'); break
       case 'forcePause': await c.forcePause(gid); break
-      case 'forceRemove': await c.forceRemove(gid); break
+      case 'forceRemove': await c.forcePurge(gid, t?.status ?? 'active'); break
       case 'copyLink':
         if (t) await navigator.clipboard?.writeText(t.files[0]?.uris[0]?.uri ?? '')
         return
@@ -39,7 +39,7 @@ async function operate(gid: string, op: TaskOp) {
         if (!t) return
         const url = t.files[0]?.uris[0]?.uri ?? ''
         const out = basename(t.files[0]?.path ?? '')
-        await c.remove(gid)
+        await c.purge(gid, t.status)
         await c.addUri([url], { dir: t.dir, out })
         break
       }
@@ -62,7 +62,7 @@ async function submitRetry(url: string) {
   if (!c || !t) return
   const out = basename(t.files[0]?.path ?? '')
   try {
-    await c.remove(retry.value.gid)
+    await c.purge(retry.value.gid, t.status)
     await c.addUri([url], { dir: t.dir, out })
     api.value!.refresh()
   } catch (e) {
