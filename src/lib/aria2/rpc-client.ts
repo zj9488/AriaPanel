@@ -44,6 +44,8 @@ export class Aria2Client {
     const stopped = status === 'complete' || status === 'error' || status === 'removed'
     return stopped ? this.removeDownloadResult(gid) : this.forceRemove(gid)
   }
+  getOption(gid: string) { return this.call<Record<string, string>>('aria2.getOption', [gid]) }
+
   addUri(uris: string[], options?: Record<string, unknown>) {
     const params = options ? [uris, options] : [uris]
     return this.call<string>('aria2.addUri', params)

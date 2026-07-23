@@ -17,7 +17,7 @@ const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 const message = useMessage()
 
 const ctx = ref({ show: false, x: 0, y: 0, gid: '', status: 'active' as 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error', isBittorrent: false })
-const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '' })
+const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '', proxy: '', split: 5 })
 
 function basename(p: string) { return p.split(/[\\/]/).pop() || p }
 
@@ -45,7 +45,15 @@ async function operate(gid: string, op: TaskOp) {
       }
       case 'retryWithUrl': {
         if (!t) return
-        retry.value = { show: true, gid, url: t.files[0]?.uris[0]?.uri ?? '', dir: t.dir, filename: basename(t.files[0]?.path ?? '') }
+        const opts = await c.getOption(gid)
+        retry.value = {
+          show: true, gid,
+          url: t.files[0]?.uris[0]?.uri ?? '',
+          dir: t.dir,
+          filename: basename(t.files[0]?.path ?? ''),
+          proxy: opts['all-proxy'] ?? '',
+          split: parseInt(opts['max-connection-per-server'] ?? '5', 10) || 5,
+        }
         return
       }
     }
@@ -111,6 +119,6 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
       :show="ctx.show" :x="ctx.x" :y="ctx.y" :status="ctx.status" :is-bittorrent="ctx.isBittorrent"
       @select="(op) => operate(ctx.gid, op)" @close="ctx.show = false"
     />
-    <RetryDialog v-model:show="retry.show" :original-url="retry.url" :original-dir="retry.dir" :original-filename="retry.filename" @submit="submitRetry" />
+    <RetryDialog v-model:show="retry.show" :original-url="retry.url" :original-dir="retry.dir" :original-filename="retry.filename" :original-proxy="retry.proxy" :original-split="retry.split" @submit="submitRetry" />
   </div>
 </template>

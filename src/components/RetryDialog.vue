@@ -8,6 +8,8 @@ const props = defineProps<{
   originalUrl: string
   originalDir: string
   originalFilename: string
+  originalProxy: string
+  originalSplit: number
 }>()
 const emit = defineEmits<{ 'update:show': [v: boolean]; submit: [url: string, dir: string, filename: string, proxy: string, split: number] }>()
 
@@ -22,8 +24,8 @@ watch(() => props.show, v => {
     url.value = props.originalUrl
     dir.value = props.originalDir
     filename.value = props.originalFilename
-    proxy.value = ''
-    split.value = 5
+    proxy.value = props.originalProxy
+    split.value = props.originalSplit
   }
 })
 
