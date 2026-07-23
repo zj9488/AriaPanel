@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, type Ref } from 'vue'
+import { ref, computed, inject, type Ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import Sidebar from '@/components/Sidebar.vue'
 import TopBar from '@/components/TopBar.vue'
@@ -9,10 +9,35 @@ import TaskContextMenu from '@/components/TaskContextMenu.vue'
 import RetryDialog from '@/components/RetryDialog.vue'
 import AddUrlBar from '@/components/AddUrlBar.vue'
 import { useTaskStore } from '@/stores/task'
+import { usePrefStore } from '@/stores/preferences'
 import type { Aria2Api } from '@/composables/useAria2'
 import type { TaskOp } from '@/lib/task-op'
 
 const tasks = useTaskStore()
+const prefs = usePrefStore()
+
+function pct(t: { totalLength: string; completedLength: string }): number {
+  const total = Number(t.totalLength) || 0
+  const done = Number(t.completedLength) || 0
+  return total === 0 ? 0 : Math.round((done / total) * 100)
+}
+
+const displayTasks = computed(() => {
+  const list = [...tasks.visibleTasks]
+  const key = prefs.sortKey
+  const dir = prefs.sortOrder === 'asc' ? 1 : -1
+  return list.sort((a, b) => {
+    let cmp = 0
+    switch (key) {
+      case 'name': cmp = (a.bittorrent?.info?.name || a.files?.[0]?.path || a.gid).localeCompare(b.bittorrent?.info?.name || b.files?.[0]?.path || b.gid); break
+      case 'size': cmp = Number(a.totalLength) - Number(b.totalLength); break
+      case 'progress': cmp = pct(a) - pct(b); break
+      case 'speed': cmp = Number(a.downloadSpeed) - Number(b.downloadSpeed); break
+      case 'status': cmp = a.status.localeCompare(b.status); break
+    }
+    return cmp * dir
+  })
+})
 const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 const message = useMessage()
 
@@ -111,7 +136,7 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
         <BulkToolbar />
         <AddUrlBar :default-dir="api?.dir ?? ''" :on-add="onAdd" />
         <div style="flex:1;overflow:auto" @contextmenu.prevent>
-          <TaskTable :tasks="tasks.visibleTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" />
+          <TaskTable :tasks="displayTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" />
         </div>
       </div>
     </div>

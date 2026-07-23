@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import type { Aria2Task } from '@/lib/aria2/types'
 import type { TaskOp } from '@/lib/task-op'
 import { useTaskStore } from '@/stores/task'
+import { usePrefStore, type SortKey } from '@/stores/preferences'
 
 const props = defineProps<{
   tasks: Aria2Task[]
@@ -16,6 +17,26 @@ defineEmits<{
 }>()
 
 const store = useTaskStore()
+const prefs = usePrefStore()
+
+const sortableColumns: { key: SortKey; label: string }[] = [
+  { key: 'name', label: '名称' },
+  { key: 'progress', label: '进度' },
+  { key: 'size', label: '大小' },
+  { key: 'speed', label: '速度' },
+  { key: 'status', label: '状态' },
+]
+function toggleSort(key: SortKey) {
+  if (prefs.sortKey === key) {
+    prefs.setSort(key, prefs.sortOrder === 'asc' ? 'desc' : 'asc')
+  } else {
+    prefs.setSort(key, 'asc')
+  }
+}
+function sortArrow(key: SortKey): string {
+  if (prefs.sortKey !== key) return ''
+  return prefs.sortOrder === 'asc' ? '↑' : '↓'
+}
 
 function name(t: Aria2Task): string {
   return t.bittorrent?.info?.name || t.files?.[0]?.path?.split(/[\\/]/).pop() || t.gid
@@ -29,6 +50,14 @@ function fmtBytes(s: string): string {
   const n = Number(s)
   if (!n) return '0 B/s'
   const u = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  let i = 0; let v = n
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
+}
+function fmtSize(s: string): string {
+  const n = Number(s)
+  if (!n) return '0 B'
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']
   let i = 0; let v = n
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
   return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
@@ -52,7 +81,12 @@ function toggleAll(v: boolean) { v ? store.selectAllVisible() : store.clearSelec
     <thead>
       <tr>
         <th style="width:32px"><NCheckbox :checked="allChecked" @update:checked="toggleAll" /></th>
-        <th>名称</th><th>进度</th><th>速度</th><th>状态</th><th style="width:160px">操作</th>
+        <th v-for="col in sortableColumns" :key="col.key"
+          @click="toggleSort(col.key)"
+          style="cursor:pointer;user-select:none">
+          {{ col.label }} <span style="opacity:.6">{{ sortArrow(col.key) }}</span>
+        </th>
+        <th style="width:160px">操作</th>
       </tr>
     </thead>
     <tbody>
@@ -60,6 +94,7 @@ function toggleAll(v: boolean) { v ? store.selectAllVisible() : store.clearSelec
         <td><NCheckbox :checked="store.selection.has(r.t.gid)" @update:checked="store.toggleSelect(r.t.gid)" /></td>
         <td>{{ r.name }}</td>
         <td style="width:180px"><NProgress :percentage="r.pct" :height="10" /></td>
+        <td style="width:90px">{{ fmtSize(r.t.totalLength) }}</td>
         <td>{{ fmtBytes(r.t.downloadSpeed) }}</td>
         <td>{{ r.t.status }}</td>
         <td>
