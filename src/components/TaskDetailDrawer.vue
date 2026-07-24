@@ -3,6 +3,7 @@ import { NButton, NDrawer, NDrawerContent, NProgress, NTag } from 'naive-ui'
 import { computed } from 'vue'
 import type { Aria2TaskDetail } from '@/lib/aria2/types'
 import type { TaskOp } from '@/lib/task-op'
+import { fmtSpeed } from '@/lib/format'
 
 const props = defineProps<{ show: boolean; detail: Aria2TaskDetail | null; operate: (gid: string, op: TaskOp) => void }>()
 const emit = defineEmits<{ 'update:show': [v: boolean] }>()
@@ -16,14 +17,6 @@ function fmtBytes(s: string): string {
   const n = Number(s)
   if (!n) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB']
-  let i = 0; let v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
-}
-function fmtSpeed(s: string): string {
-  const n = Number(s)
-  if (!n) return '0 B/s'
-  const u = ['B/s', 'KB/s', 'MB/s', 'GB/s']
   let i = 0; let v = n
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
   return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`

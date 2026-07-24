@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { NButton, NInput, NInputNumber } from 'naive-ui'
-import { ref, watch } from 'vue'
+import { NButton, NInput, NInputNumber, NSelect } from 'naive-ui'
+import { ref, watch, computed } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
+import { useCategoryStore } from '@/stores/category'
 
 const props = defineProps<{ onAdd: (url: string, dir: string, filename: string, proxy: string, split: number) => void; defaultDir: string }>()
 
@@ -10,6 +11,19 @@ const dir = ref(props.defaultDir)
 const filename = ref('')
 const proxy = ref('')
 const split = ref(5)
+
+const cats = useCategoryStore()
+const selectedCategory = ref<string | null>(null)
+
+const categoryOptions = computed(() =>
+  cats.categories.map(c => ({ label: c.name, value: c.id }))
+)
+
+watch(selectedCategory, id => {
+  if (!id) return
+  const cat = cats.getCategory(id)
+  if (cat && cat.dir) dir.value = cat.dir
+})
 
 watch(() => props.defaultDir, v => { dir.value = v })
 
@@ -55,6 +69,7 @@ defineExpose({ setUrl })
       <NButton type="primary" @click="submit">添加</NButton>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
+      <NSelect v-model:value="selectedCategory" :options="categoryOptions" size="small" placeholder="分类" clearable style="width:120px;flex-shrink:0" />
       <NInput v-model:value="dir" size="small" placeholder="保存路径" />
       <NButton size="small" quaternary @click="browse">浏览</NButton>
       <NInput v-model:value="filename" size="small" placeholder="文件名（可选）" style="width:180px" />

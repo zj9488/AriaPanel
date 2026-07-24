@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowReactive, watch } from 'vue'
 import type { Aria2Task } from '@/lib/aria2/types'
+import { useCategoryStore } from './category'
 
 export type TaskFilter = 'all' | 'active' | 'waiting' | 'stopped'
 
@@ -11,18 +12,36 @@ export const useTaskStore = defineStore('task', () => {
   const filter = ref<TaskFilter>(localStorage.getItem('ap:filter') as TaskFilter ?? 'all')
   watch(filter, v => localStorage.setItem('ap:filter', v), { flush: 'sync' })
   const selectedGid = ref<string | null>(null)
+  const searchQuery = ref('')
+  const categoryFilter = ref<string | null>(null)
 
   const active = computed(() => order.value.map(g => tasks.get(g)!).filter(t => t && t.status === 'active'))
   const waiting = computed(() => order.value.map(g => tasks.get(g)!).filter(t => t && (t.status === 'waiting' || t.status === 'paused')))
   const stopped = computed(() => order.value.map(g => tasks.get(g)!).filter(t => t && (t.status === 'complete' || t.status === 'removed' || t.status === 'error')))
 
   const visibleTasks = computed(() => {
+    let list: Aria2Task[]
     switch (filter.value) {
-      case 'active': return active.value
-      case 'waiting': return waiting.value
-      case 'stopped': return stopped.value
-      default: return [...active.value, ...waiting.value, ...stopped.value]
+      case 'active': list = active.value; break
+      case 'waiting': list = waiting.value; break
+      case 'stopped': list = stopped.value; break
+      default: list = [...active.value, ...waiting.value, ...stopped.value]
     }
+    if (categoryFilter.value) {
+      const catStore = useCategoryStore()
+      const cid = categoryFilter.value
+      list = list.filter(t => catStore.matchCategory(t, cid))
+    }
+    if (searchQuery.value) {
+      const q = searchQuery.value.toLowerCase()
+      list = list.filter(t => {
+        const name = t.bittorrent?.info?.name
+          || t.files?.[0]?.path?.split(/[\\/]/).pop()
+          || t.gid
+        return name.toLowerCase().includes(q)
+      })
+    }
+    return list
   })
 
   function apply(a: Aria2Task[], w: Aria2Task[], s: Aria2Task[]) {
@@ -56,7 +75,7 @@ export const useTaskStore = defineStore('task', () => {
   function setFilter(f: TaskFilter) { filter.value = f }
 
   return {
-    tasks, order, selection, filter, selectedGid, active, waiting, stopped, visibleTasks,
+    tasks, order, selection, filter, selectedGid, searchQuery, categoryFilter, active, waiting, stopped, visibleTasks,
     apply, upsert, clear, toggleSelect, selectMany, selectAllVisible, clearSelection, setFilter,
   }
 })
