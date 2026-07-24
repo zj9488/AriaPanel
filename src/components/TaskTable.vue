@@ -5,6 +5,7 @@ import type { Aria2Task } from '@/lib/aria2/types'
 import type { TaskOp } from '@/lib/task-op'
 import { useTaskStore } from '@/stores/task'
 import { usePrefStore, type SortKey } from '@/stores/preferences'
+import { fmtSpeed } from '@/lib/format'
 
 const props = defineProps<{
   tasks: Aria2Task[]
@@ -47,14 +48,6 @@ function pct(t: Aria2Task): number {
   const done = Number(t.completedLength) || 0
   return total === 0 ? 0 : Math.round((done / total) * 100)
 }
-function fmtBytes(s: string): string {
-  const n = Number(s)
-  if (!n) return '0 B/s'
-  const u = ['B/s', 'KB/s', 'MB/s', 'GB/s']
-  let i = 0; let v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
-}
 function fmtSize(s: string): string {
   const n = Number(s)
   if (!n) return '0 B'
@@ -96,7 +89,7 @@ function toggleAll(v: boolean) { v ? store.selectAllVisible() : store.clearSelec
         <td>{{ r.name }}</td>
         <td style="width:180px"><NProgress :percentage="r.pct" :height="10" /></td>
         <td style="width:90px">{{ fmtSize(r.t.totalLength) }}</td>
-        <td>{{ fmtBytes(r.t.downloadSpeed) }}</td>
+        <td>{{ fmtSpeed(r.t.downloadSpeed) }}</td>
         <td>{{ r.t.status }}</td>
         <td @click.stop>
           <template v-if="r.primary">

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, inject, type Ref } from 'vue'
-import { NDropdown, useDialog } from 'naive-ui'
+import { NDropdown, useDialog, useMessage } from 'naive-ui'
 import { useTaskStore, type TaskFilter } from '@/stores/task'
 import { useCategoryStore, type Category } from '@/stores/category'
 import { useConnectionStore } from '@/stores/connection'
 import type { Aria2Api } from '@/composables/useAria2'
+import { fmtSpeed } from '@/lib/format'
 import CategoryModal from './CategoryModal.vue'
 
 const tasks = useTaskStore()
@@ -12,6 +13,7 @@ const cats = useCategoryStore()
 const conn = useConnectionStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const dialog = useDialog()
+const message = useMessage()
 
 const statusItems = computed(() => [
   { key: 'all' as TaskFilter, label: '全部', count: tasks.active.length + tasks.waiting.length + tasks.stopped.length },
@@ -35,15 +37,6 @@ function catCount(catId: string): number {
     if (t && cats.matchCategory(t, catId)) count++
   }
   return count
-}
-
-function fmtSpeed(s: string): string {
-  const n = Number(s)
-  if (!n) return '0 B/s'
-  const u = ['B/s', 'KB/s', 'MB/s', 'GB/s']
-  let i = 0; let v = n
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
-  return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
 }
 
 function selectCategory(id: string) {
@@ -76,7 +69,11 @@ function catMenuPick(key: string) {
       content: count > 0 ? `「${label}」下有 ${count} 个任务，删除后这些任务将变为未分类。确定删除？` : `确定删除「${label}」？`,
       positiveText: '删除',
       negativeText: '取消',
-      onPositiveClick: () => { cats.removeCategory(id) },
+      onPositiveClick: () => {
+        const ok = cats.removeCategory(id)
+        if (!ok) message.warning('至少保留一个默认分类')
+        if (tasks.categoryFilter === id) tasks.categoryFilter = null
+      },
     })
   }
 }
