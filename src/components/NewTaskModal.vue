@@ -117,8 +117,10 @@ async function submit() {
   } else {
     message.success(`已添加 ${success} 个任务`)
   }
-  emit('update:show', false)
-  emit('submitted')
+  if (success > 0) {
+    emit('update:show', false)
+    emit('submitted')
+  }
 }
 </script>
 
