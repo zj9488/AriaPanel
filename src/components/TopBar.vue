@@ -12,7 +12,7 @@ const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const message = useMessage()
 const { mode, themeMode, setTheme } = useTheme()
 
-const emit = defineEmits<{ settings: [] }>()
+const emit = defineEmits<{ settings: []; 'new-task': [] }>()
 
 async function run(fn: 'pauseAll' | 'unpauseAll', ok: string) {
   const c = api?.value?.client
@@ -36,6 +36,7 @@ function cycleTheme() {
 <template>
   <div style="padding:8px 12px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--n-border-color,#eee)">
     <strong>AriaPanel</strong>
+    <NButton size="small" type="primary" @click="emit('new-task')">+ 新建</NButton>
     <NSpace :size="8">
       <NButton size="small" @click="run('pauseAll','全部暂停')">全部暂停</NButton>
       <NButton size="small" @click="run('unpauseAll','全部继续')">全部继续</NButton>

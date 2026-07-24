@@ -8,6 +8,7 @@ import TaskTable from '@/components/TaskTable.vue'
 import TaskContextMenu from '@/components/TaskContextMenu.vue'
 import RetryDialog from '@/components/RetryDialog.vue'
 import AddUrlBar from '@/components/AddUrlBar.vue'
+import NewTaskModal from '@/components/NewTaskModal.vue'
 import { useTaskStore } from '@/stores/task'
 import { usePrefStore } from '@/stores/preferences'
 import { invoke } from '@tauri-apps/api/core'
@@ -53,6 +54,7 @@ const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '', proxy:
 const detail = ref<Aria2TaskDetail | null>(null)
 const detailShow = ref(false)
 const settingsShow = ref(false)
+const newTaskShow = ref(false)
 
 let detailTimer: ReturnType<typeof setInterval> | null = null
 async function fetchDetail() {
@@ -178,7 +180,7 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
 
 <template>
   <div style="height:100vh;display:flex;flex-direction:column">
-    <TopBar @settings="settingsShow = true" />
+    <TopBar @settings="settingsShow = true" @new-task="newTaskShow = true" />
     <div style="display:flex;flex:1;min-height:0">
       <Sidebar />
       <div style="flex:1;display:flex;flex-direction:column;min-width:0">
@@ -196,5 +198,6 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
     <RetryDialog v-model:show="retry.show" :original-url="retry.url" :original-dir="retry.dir" :original-filename="retry.filename" :original-proxy="retry.proxy" :original-split="retry.split" @submit="submitRetry" />
     <TaskDetailDrawer :show="detailShow" @update:show="onDrawerClose" :detail="detail" :operate="operate" />
     <SettingsModal v-model:show="settingsShow" @saved="api?.refresh()" />
+    <NewTaskModal v-model:show="newTaskShow" :default-dir="api?.dir ?? ''" @submitted="api?.refresh()" />
   </div>
 </template>
