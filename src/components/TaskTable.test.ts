@@ -37,4 +37,11 @@ describe('TaskTable', () => {
     await w.get('[data-op="pause"]').trigger('click')
     expect(operate).toHaveBeenCalledWith('g1', 'pause')
   })
+
+  it('renders sort indicator on active column', () => {
+    localStorage.setItem('ap:sortKey', 'size')
+    localStorage.setItem('ap:sortOrder', 'desc')
+    const w = mount(TaskTable, { props: { tasks: [mkTask('g1', 'active')], operate: () => {} } })
+    expect(w.text()).toContain('↓')
+  })
 })

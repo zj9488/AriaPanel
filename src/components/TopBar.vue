@@ -2,21 +2,32 @@
 import { NButton, NSpace, useMessage } from 'naive-ui'
 import { inject, type Ref } from 'vue'
 import { useConnectionStore } from '@/stores/connection'
+import { useTheme, type ThemeMode } from '@/composables/useTheme'
 import type { Aria2Api } from '@/composables/useAria2'
 
 const conn = useConnectionStore()
-const api = inject<Ref<Aria2Api | null>>('aria2-api')!
+const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const message = useMessage()
+const { mode, themeMode, setTheme } = useTheme()
+
+const emit = defineEmits<{ settings: [] }>()
 
 async function run(fn: 'pauseAll' | 'unpauseAll', ok: string) {
-  const c = api.value?.client
+  const c = api?.value?.client
   if (!c) return
   try {
     await c[fn]()
-    api.value!.refresh()
+    api?.value?.refresh()
   } catch (e) {
     message.error(`${ok} 失败：${String(e)}`)
   }
+}
+
+const themeIcons: Record<ThemeMode, string> = { light: '☀', dark: '🌙', system: '💻' }
+function cycleTheme() {
+  const order: ThemeMode[] = ['system', 'light', 'dark']
+  const next = order[(order.indexOf(themeMode.value) + 1) % order.length]
+  setTheme(next)
 }
 </script>
 
@@ -28,5 +39,7 @@ async function run(fn: 'pauseAll' | 'unpauseAll', ok: string) {
       <NButton size="small" @click="run('unpauseAll','全部继续')">全部继续</NButton>
     </NSpace>
     <span style="margin-left:auto;font-size:12px;opacity:.7">{{ conn.status }}</span>
+    <NButton size="small" quaternary @click="cycleTheme" :title="`主题: ${themeMode}`">{{ themeIcons[themeMode] }}</NButton>
+    <NButton size="small" quaternary @click="emit('settings')">⚙</NButton>
   </div>
 </template>

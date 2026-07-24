@@ -66,4 +66,31 @@ describe('Aria2Client', () => {
     const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
     expect(body.params).toEqual(['token:S', ['http://x/f.bin']])
   })
+
+  it('tellStatus sends gid', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: { gid: 'g1' } })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.tellStatus('g1')
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.method).toBe('aria2.tellStatus')
+    expect(body.params).toEqual(['token:S', 'g1'])
+  })
+
+  it('changeOption sends gid and options', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: 'OK' })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.changeOption('g1', { 'select-file': '1,2' })
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.method).toBe('aria2.changeOption')
+    expect(body.params).toEqual(['token:S', 'g1', { 'select-file': '1,2' }])
+  })
+
+  it('changeGlobalOption sends options', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: 'OK' })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.changeGlobalOption({ 'max-concurrent-downloads': '3' })
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.method).toBe('aria2.changeGlobalOption')
+    expect(body.params).toEqual(['token:S', { 'max-concurrent-downloads': '3' }])
+  })
 })

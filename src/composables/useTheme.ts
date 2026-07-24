@@ -1,12 +1,18 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { usePrefStore, type ThemeMode } from '@/stores/preferences'
 
-export type ThemeMode = 'light' | 'dark'
+export type { ThemeMode }
 
 export function useTheme() {
-  const prefersDark = () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
-  const mode = ref<ThemeMode>(prefersDark() ? 'dark' : 'light')
-  const apply = (m: ThemeMode) => { mode.value = m }
-  // 监听系统变化
-  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', e => { mode.value = e.matches ? 'dark' : 'light' })
-  return { mode, apply }
+  const prefs = usePrefStore()
+  const systemDark = ref(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
+  const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
+  mq?.addEventListener?.('change', e => { systemDark.value = e.matches })
+
+  const isDark = computed(() => prefs.themeMode === 'dark' || (prefs.themeMode === 'system' && systemDark.value))
+  const mode = computed(() => isDark.value ? 'dark' : 'light')
+
+  function setTheme(m: ThemeMode) { prefs.setTheme(m) }
+
+  return { mode, themeMode: computed(() => prefs.themeMode), setTheme }
 }

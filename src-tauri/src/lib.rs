@@ -1,40 +1,124 @@
 pub mod aria2;
+pub mod settings;
 pub mod commands;
 pub mod secret;
 
 use aria2::{binary_path, new_config, rpc_http_url};
 use commands::{AppState, RpcEndpoint};
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let allow = window.app_handle().try_state::<AppState>()
+                    .map(|s| s.allow_exit.load(std::sync::atomic::Ordering::Relaxed))
+                    .unwrap_or(false);
+                if !allow {
+                    let _ = window.hide();
+                    api.prevent_close();
+                } else {
+                    let size = window.outer_size().unwrap_or_default();
+                    let pos = window.outer_position().unwrap_or_default();
+                    let data_dir = window.app_handle().path().app_data_dir().unwrap_or_default();
+                    let geo = serde_json::json!({
+                        "width": size.width,
+                        "height": size.height,
+                        "x": pos.x,
+                        "y": pos.y,
+                    });
+                    let _ = std::fs::write(data_dir.join("window.json"), geo.to_string());
+                }
+            }
+        })
         .manage(AppState {
             endpoint: Mutex::new(None),
             port: Mutex::new(None),
             secret: Mutex::new(None),
             supervisor: Mutex::new(aria2::Supervisor::new()),
+            allow_exit: std::sync::atomic::AtomicBool::new(false),
         })
         .setup(|app| {
+            let show_i = MenuItem::with_id(app, "tray_show", "显示主窗口", true, None::<&str>)?;
+            let pause_i = MenuItem::with_id(app, "tray_pause", "全部暂停", true, None::<&str>)?;
+            let resume_i = MenuItem::with_id(app, "tray_resume", "全部继续", true, None::<&str>)?;
+            let sep = PredefinedMenuItem::separator(app)?;
+            let quit_i = MenuItem::with_id(app, "tray_quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &pause_i, &resume_i, &sep, &quit_i])?;
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().cloned().ok_or("no icon")?)
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "tray_show" => {
+                        if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
+                    }
+                    "tray_pause" => { let _ = app.emit("tray://pause-all", ()); }
+                    "tray_resume" => { let _ = app.emit("tray://resume-all", ()); }
+                    "tray_quit" => {
+                        if let Some(s) = app.try_state::<AppState>() {
+                            s.allow_exit.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        if let Some(w) = app.get_webview_window("main") { let _ = w.close(); }
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(w) = app.get_webview_window("main") { let _ = w.show(); let _ = w.set_focus(); }
+                    }
+                })
+                .build(app)?;
+
+            if let Some(w) = app.get_webview_window("main") {
+                let data_dir = app.path().app_data_dir().unwrap_or_default();
+                let geo_path = data_dir.join("window.json");
+                if let Ok(json) = std::fs::read_to_string(&geo_path) {
+                    if let Ok(geo) = serde_json::from_str::<serde_json::Value>(&json) {
+                        if let (Some(width), Some(height)) = (geo["width"].as_u64(), geo["height"].as_u64()) {
+                            let _ = w.set_size(PhysicalSize::new(width as u32, height as u32));
+                        }
+                        if let (Some(x), Some(y)) = (geo["x"].as_i64(), geo["y"].as_i64()) {
+                            let _ = w.set_position(PhysicalPosition::new(x as i32, y as i32));
+                        }
+                    }
+                }
+            }
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let binary = match binary_path(&handle) {
                     Ok(p) => p,
                     Err(e) => { eprintln!("aria2 binary not found: {e}"); return; }
                 };
-                let dir = handle.path().app_data_dir().unwrap_or_default();
-                let session = dir.join("aria2.session.gz");
+                let data_dir = handle.path().app_data_dir().unwrap_or_default();
+                let _ = std::fs::create_dir_all(&data_dir);
+                let session = data_dir.join("aria2.session.gz");
+                if !session.exists() {
+                    let _ = std::fs::write(&session, b"");
+                }
+                let settings_path = settings::settings_path(&data_dir);
+                let mut settings = settings::load_settings(&settings_path);
+                let dir = if settings.dir.is_empty() { data_dir.join("downloads") } else { std::path::PathBuf::from(&settings.dir) };
                 let _ = std::fs::create_dir_all(&dir);
-                let _ = std::fs::write(&session, b"");
-                let cfg = new_config(dir, session);
+                let cfg = new_config(dir, session, &settings);
+                if settings.port.is_none() || settings.secret.is_none() {
+                    settings.port = Some(cfg.port);
+                    settings.secret = Some(cfg.secret.clone());
+                    settings::save_to_disk(&settings_path, &settings);
+                }
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
                 let st = match handle.try_state::<AppState>() { Some(s) => s, None => return };
                 let ok = {
                     let mut sup = std::mem::replace(&mut *st.supervisor.lock().unwrap(), aria2::Supervisor::new());
-                    let result = sup.start(&binary, &cfg).await;
+                    let result = sup.start(&binary, &cfg, &settings).await;
                     let _ = std::mem::replace(&mut *st.supervisor.lock().unwrap(), sup);
                     result
                 };
@@ -51,7 +135,12 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![commands::get_rpc_endpoint])
+        .invoke_handler(tauri::generate_handler![
+            commands::get_rpc_endpoint,
+            commands::get_settings,
+            commands::save_settings,
+            commands::open_folder,
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 

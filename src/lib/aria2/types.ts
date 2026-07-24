@@ -28,3 +28,10 @@ export interface GlobalStat {
   waiting: string
   stoppedTotal: string
 }
+
+export interface Aria2TaskDetail extends Aria2Task {
+  pieceLength: string
+  numPieces: string
+  bitfield: string
+  connections: string
+}

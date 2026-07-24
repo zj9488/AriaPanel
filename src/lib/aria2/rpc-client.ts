@@ -1,4 +1,4 @@
-import type { Aria2Task, GlobalStat, RpcResponse } from './types'
+import type { Aria2Task, Aria2TaskDetail, GlobalStat, RpcResponse } from './types'
 
 export class Aria2Client {
   private id = 0
@@ -45,6 +45,10 @@ export class Aria2Client {
     return stopped ? this.removeDownloadResult(gid) : this.forceRemove(gid)
   }
   getOption(gid: string) { return this.call<Record<string, string>>('aria2.getOption', [gid]) }
+  tellStatus(gid: string) { return this.call<Aria2TaskDetail>('aria2.tellStatus', [gid]) }
+  changeOption(gid: string, options: Record<string, string>) { return this.call('aria2.changeOption', [gid, options]) }
+  getGlobalOption() { return this.call<Record<string, string>>('aria2.getGlobalOption') }
+  changeGlobalOption(options: Record<string, string>) { return this.call('aria2.changeGlobalOption', [options]) }
 
   addUri(uris: string[], options?: Record<string, unknown>) {
     const params = options ? [uris, options] : [uris]

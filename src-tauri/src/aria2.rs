@@ -1,4 +1,5 @@
 use crate::secret::{generate_secret, pick_free_port};
+use crate::settings::Settings;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use tauri::Manager;
@@ -10,10 +11,10 @@ pub struct Aria2Config {
     pub session: PathBuf,
 }
 
-pub fn new_config(dir: PathBuf, session: PathBuf) -> Aria2Config {
+pub fn new_config(dir: PathBuf, session: PathBuf, settings: &Settings) -> Aria2Config {
     Aria2Config {
-        port: pick_free_port(),
-        secret: generate_secret(),
+        port: settings.port.unwrap_or_else(pick_free_port),
+        secret: settings.secret.clone().unwrap_or_else(generate_secret),
         dir,
         session,
     }
@@ -37,6 +38,21 @@ pub fn build_args(cfg: &Aria2Config) -> Vec<String> {
     ]
 }
 
+pub fn build_global_args(s: &Settings) -> Vec<String> {
+    let mut args = vec![
+        format!("--max-concurrent-downloads={}", s.max_concurrent_downloads),
+        format!("--max-connection-per-server={}", s.max_connection_per_server),
+        format!("--min-split-size={}", s.min_split_size),
+        format!("--split={}", s.split),
+        format!("--max-overall-download-limit={}", s.max_overall_download_limit),
+        format!("--max-overall-upload-limit={}", s.max_overall_upload_limit),
+    ];
+    if !s.all_proxy.is_empty() {
+        args.push(format!("--all-proxy={}", s.all_proxy));
+    }
+    args
+}
+
 pub fn rpc_http_url(port: u16) -> String {
     format!("http://127.0.0.1:{port}/jsonrpc")
 }
@@ -46,9 +62,10 @@ pub fn binary_path(app: &tauri::AppHandle) -> tauri::Result<PathBuf> {
     app.path().resolve(name, tauri::path::BaseDirectory::Resource)
 }
 
-pub fn spawn(binary: &Path, cfg: &Aria2Config) -> std::io::Result<Child> {
+pub fn spawn(binary: &Path, cfg: &Aria2Config, settings: &Settings) -> std::io::Result<Child> {
     Command::new(binary)
         .args(build_args(cfg))
+        .args(build_global_args(settings))
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -93,8 +110,8 @@ impl Supervisor {
     pub fn can_restart(&self) -> bool { self.restarts < self.max_restarts }
 
     /// spawn 子进程并健康检查；失败返回 false。
-    pub async fn start(&mut self, binary: &Path, cfg: &Aria2Config) -> bool {
-        match spawn(binary, cfg) {
+    pub async fn start(&mut self, binary: &Path, cfg: &Aria2Config, settings: &Settings) -> bool {
+        match spawn(binary, cfg, settings) {
             Ok(c) => {
                 self.child = Some(c);
                 health_check(cfg.port, &cfg.secret).await
@@ -104,7 +121,7 @@ impl Supervisor {
     }
 
     /// 若子进程已退出且未超上限，则重启。
-    pub async fn ensure_alive(&mut self, binary: &Path, cfg: &Aria2Config) -> bool {
+    pub async fn ensure_alive(&mut self, binary: &Path, cfg: &Aria2Config, settings: &Settings) -> bool {
         let dead = match self.child.as_mut() {
             None => true,
             Some(c) => match c.try_wait() {
@@ -115,9 +132,15 @@ impl Supervisor {
         if dead {
             if !self.can_restart() { return false; }
             self.restarts += 1;
-            return self.start(binary, cfg).await;
+            return self.start(binary, cfg, settings).await;
         }
         true
+    }
+
+    pub async fn restart(&mut self, binary: &Path, old_port: u16, old_secret: &str, cfg: &Aria2Config, settings: &Settings) -> bool {
+        self.shutdown(old_port, old_secret).await;
+        self.restarts = 0;
+        self.start(binary, cfg, settings).await
     }
 
     /// 优雅停：发 aria2.shutdown，等待 ≤5s，超时强杀。
@@ -219,5 +242,26 @@ mod tests {
         let mut s = Supervisor::new();
         s.restarts = 3; // 模拟已达上限
         assert!(!s.can_restart());
+    }
+
+    #[test]
+    fn build_global_args_includes_concurrent_and_split() {
+        use crate::settings::Settings;
+        let s = Settings { max_concurrent_downloads: 3, split: 8, max_connection_per_server: 4, min_split_size: "10M".into(), max_overall_download_limit: "1M".into(), max_overall_upload_limit: "0".into(), all_proxy: "http://p:1".into(), ..Settings::default() };
+        let a = build_global_args(&s);
+        assert!(a.contains(&"--max-concurrent-downloads=3".to_string()));
+        assert!(a.contains(&"--split=8".to_string()));
+        assert!(a.contains(&"--max-connection-per-server=4".to_string()));
+        assert!(a.contains(&"--min-split-size=10M".to_string()));
+        assert!(a.contains(&"--max-overall-download-limit=1M".to_string()));
+        assert!(a.contains(&"--all-proxy=http://p:1".to_string()));
+    }
+
+    #[test]
+    fn build_global_args_omits_empty_proxy() {
+        use crate::settings::Settings;
+        let s = Settings::default();
+        let a = build_global_args(&s);
+        assert!(!a.iter().any(|x| x.starts_with("--all-proxy")));
     }
 }

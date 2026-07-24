@@ -13,9 +13,20 @@ const split = ref(5)
 
 watch(() => props.defaultDir, v => { dir.value = v })
 
-function deriveFilename(u: string) {
-  try { return new URL(u).pathname.split('/').pop() || '' }
-  catch { return '' }
+function deriveFilename(u: string): string {
+  try {
+    const url = new URL(u)
+    const rcd = url.searchParams.get('response-content-disposition')
+    if (rcd) {
+      const decoded = decodeURIComponent(rcd)
+      let m = decoded.match(/filename="([^"]+)"/i)
+      if (!m) m = decoded.match(/filename\*=[^']*''([^;]+)/i)
+      if (m?.[1]) return m[1]
+    }
+    const seg = url.pathname.split('/').pop() || ''
+    if (seg && /\.[a-z0-9]{2,5}$/i.test(seg)) return seg
+    return ''
+  } catch { return '' }
 }
 
 watch(url, u => { if (u && !filename.value) filename.value = deriveFilename(u) })
@@ -32,6 +43,9 @@ function submit() {
   url.value = ''
   filename.value = ''
 }
+
+function setUrl(u: string) { url.value = u; filename.value = '' }
+defineExpose({ setUrl })
 </script>
 
 <template>
