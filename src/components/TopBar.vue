@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { NButton, NSpace, useMessage } from 'naive-ui'
+import { NButton, NSpace, NInput, useMessage } from 'naive-ui'
 import { inject, type Ref } from 'vue'
 import { useConnectionStore } from '@/stores/connection'
+import { useTaskStore } from '@/stores/task'
 import { useTheme, type ThemeMode } from '@/composables/useTheme'
 import type { Aria2Api } from '@/composables/useAria2'
 
 const conn = useConnectionStore()
+const tasks = useTaskStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const message = useMessage()
 const { mode, themeMode, setTheme } = useTheme()
@@ -38,6 +40,7 @@ function cycleTheme() {
       <NButton size="small" @click="run('pauseAll','全部暂停')">全部暂停</NButton>
       <NButton size="small" @click="run('unpauseAll','全部继续')">全部继续</NButton>
     </NSpace>
+    <NInput v-model:value="tasks.searchQuery" placeholder="搜索任务…" clearable size="small" style="width:200px" />
     <span style="margin-left:auto;font-size:12px;opacity:.7">{{ conn.status }}</span>
     <NButton size="small" quaternary @click="cycleTheme" :title="`主题: ${themeMode}`">{{ themeIcons[themeMode] }}</NButton>
     <NButton size="small" quaternary @click="emit('settings')">⚙</NButton>
