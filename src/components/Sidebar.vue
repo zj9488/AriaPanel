@@ -1,23 +1,107 @@
 <script setup lang="ts">
-import { computed, inject, type Ref } from 'vue'
+import { computed, ref, inject, type Ref } from 'vue'
+import { NDropdown, useDialog } from 'naive-ui'
 import { useTaskStore, type TaskFilter } from '@/stores/task'
+import { useCategoryStore, type Category } from '@/stores/category'
+import { useConnectionStore } from '@/stores/connection'
 import type { Aria2Api } from '@/composables/useAria2'
+import CategoryModal from './CategoryModal.vue'
 
 const tasks = useTaskStore()
+const cats = useCategoryStore()
+const conn = useConnectionStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')
+const dialog = useDialog()
 
-const items = computed(() => [
+const statusItems = computed(() => [
   { key: 'all' as TaskFilter, label: '全部', count: tasks.active.length + tasks.waiting.length + tasks.stopped.length },
   { key: 'active' as TaskFilter, label: '下载中', count: tasks.active.length },
   { key: 'waiting' as TaskFilter, label: '等待中', count: tasks.waiting.length },
   { key: 'stopped' as TaskFilter, label: '已完成', count: tasks.stopped.length },
 ])
+
+const CATEGORY_ICONS: Record<string, string> = {
+  downloads: '📁', music: '🎵', video: '🎬', image: '🖼', doc: '📄',
+}
+
+function iconFor(cat: Category): string {
+  return CATEGORY_ICONS[cat.id] ?? '📂'
+}
+
+function catCount(catId: string): number {
+  let count = 0
+  for (const gid of tasks.order) {
+    const t = tasks.tasks.get(gid)
+    if (t && cats.matchCategory(t, catId)) count++
+  }
+  return count
+}
+
+function fmtSpeed(s: string): string {
+  const n = Number(s)
+  if (!n) return '0 B/s'
+  const u = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  let i = 0; let v = n
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++ }
+  return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
+}
+
+function selectCategory(id: string) {
+  tasks.categoryFilter = tasks.categoryFilter === id ? null : id
+}
+
+const catCtx = ref({ show: false, x: 0, y: 0, id: '' })
+
+function onCategoryContext(e: MouseEvent, id: string) {
+  e.preventDefault()
+  catCtx.value = { show: true, x: e.clientX, y: e.clientY, id }
+}
+
+function catMenuOptions() {
+  return [{ label: '编辑', key: 'edit' }, { label: '删除', key: 'delete' }]
+}
+
+function catMenuPick(key: string) {
+  const id = catCtx.value.id
+  catCtx.value.show = false
+  if (key === 'edit') {
+    editingCategory.value = cats.getCategory(id) ?? null
+    catModalShow.value = true
+  } else if (key === 'delete') {
+    const count = catCount(id)
+    const cat = cats.getCategory(id)
+    const label = cat?.name ?? '该分类'
+    dialog.warning({
+      title: '删除分类',
+      content: count > 0 ? `「${label}」下有 ${count} 个任务，删除后这些任务将变为未分类。确定删除？` : `确定删除「${label}」？`,
+      positiveText: '删除',
+      negativeText: '取消',
+      onPositiveClick: () => { cats.removeCategory(id) },
+    })
+  }
+}
+
+const catModalShow = ref(false)
+const editingCategory = ref<Category | null>(null)
+
+function openAddCategory() {
+  editingCategory.value = null
+  catModalShow.value = true
+}
+
+function onCategorySubmit(name: string, dir: string) {
+  if (editingCategory.value) {
+    cats.updateCategory(editingCategory.value.id, name, dir)
+  } else {
+    cats.addCategory(name, dir)
+  }
+}
 </script>
 
 <template>
   <nav style="width:170px;flex-shrink:0;border-right:1px solid var(--n-border-color,#eee);padding:8px 0;display:flex;flex-direction:column">
     <button
-      v-for="it in items" :key="it.key"
+      v-for="it in statusItems" :key="it.key"
       @click="tasks.setFilter(it.key)"
       :style="{
         display:'flex',justifyContent:'space-between',alignItems:'center',
@@ -29,10 +113,49 @@ const items = computed(() => [
       <span>{{ it.label }}</span>
       <span style="opacity:.6;font-size:12px">{{ it.count }}</span>
     </button>
-    <div style="margin-top:16px;padding:0 14px;opacity:.4;font-size:12px">分类（M3）</div>
-    <div style="padding:0 14px;opacity:.4;font-size:12px">速度统计（M3）</div>
+
+    <div style="margin-top:12px;padding:0 14px;font-size:12px;opacity:.5">分类</div>
+    <button
+      v-for="cat in cats.categories" :key="cat.id"
+      data-cat
+      @click="selectCategory(cat.id)"
+      @contextmenu="onCategoryContext($event, cat.id)"
+      :style="{
+        display:'flex',justifyContent:'space-between',alignItems:'center',
+        width:'100%',padding:'4px 14px',border:'none',background:'transparent',cursor:'pointer',
+        fontWeight: tasks.categoryFilter === cat.id ? 700 : 400,
+        color: tasks.categoryFilter === cat.id ? 'var(--n-primary-color,#18a058)' : 'inherit',
+      }"
+    >
+      <span>{{ iconFor(cat) }} {{ cat.name }}</span>
+      <span style="opacity:.6;font-size:12px">{{ catCount(cat.id) }}</span>
+    </button>
+    <button @click="openAddCategory" style="display:flex;align-items:center;gap:4px;width:100%;padding:4px 14px;border:none;background:transparent;cursor:pointer;font-size:13px;opacity:.6">
+      + 添加分类
+    </button>
+
+    <div style="margin-top:12px;padding:0 14px;font-size:12px;display:flex;flex-direction:column;gap:2px">
+      <span style="opacity:.6">↓ {{ fmtSpeed(conn.globalStat.downloadSpeed) }}</span>
+      <span style="opacity:.6">↑ {{ fmtSpeed(conn.globalStat.uploadSpeed) }}</span>
+    </div>
+
     <div style="margin-top:auto;padding:8px 14px 0;font-size:11px;opacity:.5;word-break:break-all">
       保存到：<br>{{ api?.dir ?? '…' }}
     </div>
   </nav>
+
+  <NDropdown
+    placement="bottom-start"
+    trigger="manual"
+    :show="catCtx.show"
+    :x="catCtx.x" :y="catCtx.y"
+    :options="catMenuOptions()"
+    @select="catMenuPick"
+    @clickoutside="catCtx.show = false"
+  />
+  <CategoryModal
+    v-model:show="catModalShow"
+    :category="editingCategory"
+    @submit="onCategorySubmit"
+  />
 </template>
