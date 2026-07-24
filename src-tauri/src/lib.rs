@@ -6,7 +6,7 @@ pub mod secret;
 use aria2::{binary_path, new_config, rpc_http_url};
 use commands::{AppState, RpcEndpoint};
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
@@ -23,6 +23,17 @@ pub fn run() {
                 if !allow {
                     let _ = window.hide();
                     api.prevent_close();
+                } else {
+                    let size = window.outer_size().unwrap_or_default();
+                    let pos = window.outer_position().unwrap_or_default();
+                    let data_dir = window.app_handle().path().app_data_dir().unwrap_or_default();
+                    let geo = serde_json::json!({
+                        "width": size.width,
+                        "height": size.height,
+                        "x": pos.x,
+                        "y": pos.y,
+                    });
+                    let _ = std::fs::write(data_dir.join("window.json"), geo.to_string());
                 }
             }
         })
@@ -65,6 +76,21 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            if let Some(w) = app.get_webview_window("main") {
+                let data_dir = app.path().app_data_dir().unwrap_or_default();
+                let geo_path = data_dir.join("window.json");
+                if let Ok(json) = std::fs::read_to_string(&geo_path) {
+                    if let Ok(geo) = serde_json::from_str::<serde_json::Value>(&json) {
+                        if let (Some(width), Some(height)) = (geo["width"].as_u64(), geo["height"].as_u64()) {
+                            let _ = w.set_size(PhysicalSize::new(width as u32, height as u32));
+                        }
+                        if let (Some(x), Some(y)) = (geo["x"].as_i64(), geo["y"].as_i64()) {
+                            let _ = w.set_position(PhysicalPosition::new(x as i32, y as i32));
+                        }
+                    }
+                }
+            }
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let binary = match binary_path(&handle) {
@@ -74,7 +100,9 @@ pub fn run() {
                 let data_dir = handle.path().app_data_dir().unwrap_or_default();
                 let _ = std::fs::create_dir_all(&data_dir);
                 let session = data_dir.join("aria2.session.gz");
-                let _ = std::fs::write(&session, b"");
+                if !session.exists() {
+                    let _ = std::fs::write(&session, b"");
+                }
                 let settings_path = settings::settings_path(&data_dir);
                 let mut settings = settings::load_settings(&settings_path);
                 let dir = if settings.dir.is_empty() { data_dir.join("downloads") } else { std::path::PathBuf::from(&settings.dir) };

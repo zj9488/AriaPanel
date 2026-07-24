@@ -16,7 +16,6 @@ import type { TaskOp } from '@/lib/task-op'
 import TaskDetailDrawer from '@/components/TaskDetailDrawer.vue'
 import SettingsModal from '@/components/SettingsModal.vue'
 import { useClipboardWatcher } from '@/composables/useClipboardWatcher'
-import { useWindowGeometry } from '@/composables/useWindowGeometry'
 import type { Aria2TaskDetail } from '@/lib/aria2/types'
 
 const tasks = useTaskStore()
@@ -49,7 +48,7 @@ const message = useMessage()
 const notification = useNotification()
 
 const ctx = ref({ show: false, x: 0, y: 0, gid: '', status: 'active' as 'active' | 'waiting' | 'paused' | 'complete' | 'removed' | 'error', isBittorrent: false })
-  const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '', proxy: '', split: 5 })
+const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '', proxy: '', split: 5 })
 
 const detail = ref<Aria2TaskDetail | null>(null)
 const detailShow = ref(false)
@@ -64,24 +63,28 @@ async function fetchDetail() {
 }
 watch(() => tasks.selectedGid, gid => {
   if (gid) {
-    detailShow.value = true
     fetchDetail()
     detailTimer = setInterval(fetchDetail, 2000)
   } else {
-    detailShow.value = false
     detail.value = null
     if (detailTimer) { clearInterval(detailTimer); detailTimer = null }
   }
 })
+function onRowClick(gid: string) {
+  tasks.selectedGid = gid
+  detailShow.value = true
+}
+function onDrawerClose(v: boolean) {
+  detailShow.value = v
+  if (!v) tasks.selectedGid = ''
+}
 onUnmounted(() => { if (detailTimer) clearInterval(detailTimer) })
 
-const { start: startClipboard } = useClipboardWatcher(notification, (url) => {
-  const event = new CustomEvent('clipboard-url', { detail: url })
-  window.dispatchEvent(event)
+const addUrlRef = ref<InstanceType<typeof AddUrlBar>>()
+const { start: startClipboard, stop: stopClipboard } = useClipboardWatcher(notification, (url) => {
+  addUrlRef.value?.setUrl(url)
 })
-startClipboard()
-const { start: startGeo } = useWindowGeometry()
-startGeo()
+invoke<{ clipboardWatch: boolean }>('get_settings').then(s => { if (s.clipboardWatch) startClipboard() })
 
 function basename(p: string) { return p.split(/[\\/]/).pop() || p }
 
@@ -101,7 +104,8 @@ async function operate(gid: string, op: TaskOp) {
         return
       case 'openFolder': {
         if (!t) return
-        const fp = t.files[0]?.path || t.dir
+        const filePath = t.files[0]?.path
+        const fp = filePath && filePath.includes(t.dir) ? filePath : t.dir
         await invoke('open_folder', { path: fp })
         return
       }
@@ -179,9 +183,9 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
       <Sidebar />
       <div style="flex:1;display:flex;flex-direction:column;min-width:0">
         <BulkToolbar />
-        <AddUrlBar :default-dir="api?.dir ?? ''" :on-add="onAdd" />
+        <AddUrlBar ref="addUrlRef" :default-dir="api?.dir ?? ''" :on-add="onAdd" />
         <div style="flex:1;overflow:auto" @contextmenu.prevent>
-          <TaskTable :tasks="displayTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" @row-click="(gid: string) => tasks.selectedGid = gid" />
+          <TaskTable :tasks="displayTasks" :operate="operate" @contextmenu="openContextMenu" @more="openContextMenu" @row-click="onRowClick" />
         </div>
       </div>
     </div>
@@ -190,7 +194,7 @@ async function onAdd(url: string, dir: string, filename: string, proxy: string, 
       @select="(op) => operate(ctx.gid, op)" @close="ctx.show = false"
     />
     <RetryDialog v-model:show="retry.show" :original-url="retry.url" :original-dir="retry.dir" :original-filename="retry.filename" :original-proxy="retry.proxy" :original-split="retry.split" @submit="submitRetry" />
-    <TaskDetailDrawer v-model:show="detailShow" :detail="detail" :operate="operate" />
+    <TaskDetailDrawer :show="detailShow" @update:show="onDrawerClose" :detail="detail" :operate="operate" />
     <SettingsModal v-model:show="settingsShow" @saved="api?.refresh()" />
   </div>
 </template>

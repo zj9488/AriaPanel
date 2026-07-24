@@ -97,13 +97,28 @@ pub async fn save_settings(
 #[tauri::command]
 pub fn open_folder(path: String) {
     let p = std::path::Path::new(&path);
+    let dir = if p.is_dir() {
+        p.to_path_buf()
+    } else {
+        p.parent().map(|parent| parent.to_path_buf()).unwrap_or_default()
+    };
+    if dir.as_os_str().is_empty() || !dir.is_dir() {
+        return;
+    }
     #[cfg(target_os = "windows")]
     {
-        let arg = if p.is_file() {
-            format!("/select,{}", p.display())
+        use std::os::windows::process::CommandExt;
+        let dir_str = dir.display().to_string();
+        if p.is_file() {
+            let _ = std::process::Command::new("explorer.exe")
+                .arg(format!("/select,{}", p.display()))
+                .creation_flags(0x08000000)
+                .spawn();
         } else {
-            p.display().to_string()
-        };
-        let _ = std::process::Command::new("explorer.exe").arg(arg).spawn();
+            let _ = std::process::Command::new("explorer.exe")
+                .arg(&dir_str)
+                .creation_flags(0x08000000)
+                .spawn();
+        }
     }
 }

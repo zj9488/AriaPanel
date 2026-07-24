@@ -1,3 +1,5 @@
+import { h } from 'vue'
+import { NButton } from 'naive-ui'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
@@ -11,8 +13,11 @@ export function useClipboardWatcher(
   let lastNotified = ''
   let timer: ReturnType<typeof setInterval> | null = null
   let unlistenFocus: (() => void) | null = null
+  let inFlight = false
 
   async function check() {
+    if (inFlight) return
+    inFlight = true
     try {
       const text = await readText()
       if (!text || text === lastText) return
@@ -23,15 +28,25 @@ export function useClipboardWatcher(
         lastNotified = url
         notification.info({
           title: '检测到下载链接',
-          content: url,
+          content: () => h('div', [
+            h('div', { style: 'margin-bottom:8px;word-break:break-all' }, url),
+            h(NButton, {
+              size: 'small',
+              type: 'primary',
+              onClick: () => onUrl(url),
+            }, () => '填入链接'),
+          ]),
           duration: 10000,
-          onClick: () => onUrl(url),
         })
       }
-    } catch { }
+    } catch { } finally {
+      inFlight = false
+    }
   }
 
   function start() {
+    if (timer) clearInterval(timer)
+    if (unlistenFocus) { unlistenFocus(); unlistenFocus = null }
     timer = setInterval(check, 2000)
     const win = getCurrentWindow()
     win.onFocusChanged(({ payload: focused }) => { if (focused) check() }).then(fn => { unlistenFocus = fn })
