@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton, NInput, NInputNumber, NModal, NCheckbox, useMessage } from 'naive-ui'
+import { NButton, NInput, NInputNumber, NModal, NCheckbox, NSwitch, NTabs, NTabPane, useMessage } from 'naive-ui'
 import { ref, watch, inject, type Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { Aria2Api } from '@/composables/useAria2'
@@ -21,6 +21,14 @@ interface AppSettings {
   maxOverallUploadLimit: string
   allProxy: string
   clipboardWatch: boolean
+  btMaxPeers: number
+  seedRatio: number
+  seedTime: number
+  enableDht: boolean
+  btListenPort: string
+  dhtListenPort: string
+  btTracker: string
+  btSaveMetadata: boolean
 }
 
 const s = ref<AppSettings>({
@@ -35,6 +43,14 @@ const s = ref<AppSettings>({
   maxOverallUploadLimit: '0',
   allProxy: '',
   clipboardWatch: true,
+  btMaxPeers: 55,
+  seedRatio: 1.0,
+  seedTime: 0,
+  enableDht: true,
+  btListenPort: '6881-6999',
+  dhtListenPort: '6881-6999',
+  btTracker: '',
+  btSaveMetadata: false,
 })
 const loading = ref(false)
 
@@ -93,72 +109,124 @@ async function save() {
     style="width: 500px; max-width: 90vw"
     @update:show="emit('update:show', $event)"
   >
-    <div style="display: flex; flex-direction: column; gap: 20px; padding: 4px 0">
-      <section>
-        <h4 style="margin: 0 0 8px; font-size: 14px">下载设置</h4>
-        <div style="display: flex; flex-direction: column; gap: 6px">
+    <NTabs type="line">
+      <NTabPane name="general" tab="常规" display-directive="show">
+        <div style="display: flex; flex-direction: column; gap: 20px; padding: 4px 0">
+          <section>
+            <h4 style="margin: 0 0 8px; font-size: 14px">下载设置</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+                >最大并发下载数<NInputNumber
+                  v-model:value="s.maxConcurrentDownloads"
+                  size="small"
+                  :min="1"
+                  style="width: 100px"
+              /></label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+                >单任务最大连接数<NInputNumber
+                  v-model:value="s.maxConnectionPerServer"
+                  size="small"
+                  :min="1"
+                  style="width: 100px"
+              /></label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+                >最小分块大小<NInput v-model:value="s.minSplitSize" size="small" style="width: 100px"
+              /></label>
+            </div>
+          </section>
+          <section>
+            <h4 style="margin: 0 0 8px; font-size: 14px">速度限制</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+                >全局下载限速<NInput
+                  v-model:value="s.maxOverallDownloadLimit"
+                  size="small"
+                  placeholder="0=不限"
+                  style="width: 120px"
+              /></label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+                >全局上传限速<NInput
+                  v-model:value="s.maxOverallUploadLimit"
+                  size="small"
+                  placeholder="0=不限"
+                  style="width: 120px"
+              /></label>
+            </div>
+          </section>
+          <section>
+            <h4 style="margin: 0 0 8px; font-size: 14px">下载目录</h4>
+            <NInput v-model:value="s.dir" size="small" placeholder="默认下载路径" />
+          </section>
+          <section>
+            <h4 style="margin: 0 0 8px; font-size: 14px">代理</h4>
+            <NInput v-model:value="s.allProxy" size="small" placeholder="如 http://127.0.0.1:7890" />
+          </section>
+          <section>
+            <h4 style="margin: 0 0 8px; font-size: 14px; color: #f0a020">RPC 设置 ⚠ 修改后自动重启 aria2</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+                >RPC 端口<NInputNumber v-model:value="s.port" size="small" :min="1" :max="65535" style="width: 120px"
+              /></label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+                >RPC 密钥<NInput v-model:value="s.secret" size="small" placeholder="留空=自动生成" style="width: 200px"
+              /></label>
+            </div>
+          </section>
+          <section>
+            <h4 style="margin: 0 0 8px; font-size: 14px">行为</h4>
+            <NCheckbox v-model:checked="s.clipboardWatch">剪贴板监听</NCheckbox>
+          </section>
+        </div>
+      </NTabPane>
+      <NTabPane name="bt" tab="BitTorrent" display-directive="show">
+        <div style="display: flex; flex-direction: column; gap: 16px; padding: 4px 0">
           <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-            >最大并发下载数<NInputNumber
-              v-model:value="s.maxConcurrentDownloads"
+            >最大 Peer 数<NInputNumber v-model:value="s.btMaxPeers" size="small" :min="0" style="width: 100px"
+          /></label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+            >做种比例<NInputNumber
+              v-model:value="s.seedRatio"
               size="small"
-              :min="1"
+              :step="0.1"
+              :min="0"
+              placeholder="0=不限制"
               style="width: 100px"
           /></label>
           <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-            >单任务最大连接数<NInputNumber
-              v-model:value="s.maxConnectionPerServer"
+            >做种时间 (分钟)<NInputNumber
+              v-model:value="s.seedTime"
               size="small"
-              :min="1"
+              :min="0"
+              placeholder="0=不限制"
               style="width: 100px"
           /></label>
           <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-            >最小分块大小<NInput v-model:value="s.minSplitSize" size="small" style="width: 100px"
+            >DHT<NSwitch v-model:value="s.enableDht" size="small"
           /></label>
-        </div>
-      </section>
-      <section>
-        <h4 style="margin: 0 0 8px; font-size: 14px">速度限制</h4>
-        <div style="display: flex; flex-direction: column; gap: 6px">
           <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-            >全局下载限速<NInput
-              v-model:value="s.maxOverallDownloadLimit"
+            >BT 监听端口<NInput
+              v-model:value="s.btListenPort"
               size="small"
-              placeholder="0=不限"
-              style="width: 120px"
+              placeholder="6881-6999"
+              style="width: 160px"
           /></label>
           <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-            >全局上传限速<NInput
-              v-model:value="s.maxOverallUploadLimit"
+            >DHT 监听端口<NInput
+              v-model:value="s.dhtListenPort"
               size="small"
-              placeholder="0=不限"
-              style="width: 120px"
+              placeholder="6881-6999"
+              style="width: 160px"
+          /></label>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 13px">额外 Tracker</span>
+            <NInput v-model:value="s.btTracker" type="textarea" size="small" placeholder="逗号分隔" :rows="2" />
+          </div>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
+            >保存种子文件<NSwitch v-model:value="s.btSaveMetadata" size="small"
           /></label>
         </div>
-      </section>
-      <section>
-        <h4 style="margin: 0 0 8px; font-size: 14px">下载目录</h4>
-        <NInput v-model:value="s.dir" size="small" placeholder="默认下载路径" />
-      </section>
-      <section>
-        <h4 style="margin: 0 0 8px; font-size: 14px">代理</h4>
-        <NInput v-model:value="s.allProxy" size="small" placeholder="如 http://127.0.0.1:7890" />
-      </section>
-      <section>
-        <h4 style="margin: 0 0 8px; font-size: 14px; color: #f0a020">RPC 设置 ⚠ 修改后自动重启 aria2</h4>
-        <div style="display: flex; flex-direction: column; gap: 6px">
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-            >RPC 端口<NInputNumber v-model:value="s.port" size="small" :min="1" :max="65535" style="width: 120px"
-          /></label>
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-            >RPC 密钥<NInput v-model:value="s.secret" size="small" placeholder="留空=自动生成" style="width: 200px"
-          /></label>
-        </div>
-      </section>
-      <section>
-        <h4 style="margin: 0 0 8px; font-size: 14px">行为</h4>
-        <NCheckbox v-model:checked="s.clipboardWatch">剪贴板监听</NCheckbox>
-      </section>
-    </div>
+      </NTabPane>
+    </NTabs>
     <template #footer>
       <div style="display: flex; justify-content: flex-end; gap: 8px">
         <NButton @click="emit('update:show', false)">取消</NButton>
