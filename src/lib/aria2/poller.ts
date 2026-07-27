@@ -5,9 +5,11 @@ export class Poller {
   private timer: ReturnType<typeof setTimeout> | null = null
   private active = false
   private inFlight = false
+  private failCount = 0
   constructor(
     private client: Aria2Client,
     private onTick: (a: Aria2Task[], w: Aria2Task[], s: Aria2Task[]) => void,
+    private onStatus?: (connected: boolean) => void,
   ) {}
 
   start() {
@@ -35,6 +37,7 @@ export class Poller {
   private async tick() {
     if (this.inFlight) return
     this.inFlight = true
+    let interval = this.active ? 1000 : 5000
     try {
       const [a, w, s] = await Promise.all([
         this.client.tellActive(),
@@ -43,11 +46,16 @@ export class Poller {
       ])
       this.active = a.length > 0
       this.onTick(a, w, s)
+      if (this.failCount >= 3) this.onStatus?.(true)
+      this.failCount = 0
+      interval = this.active ? 1000 : 5000
     } catch {
-      /* 网络瞬断忽略，下次重试 */
+      this.failCount++
+      if (this.failCount === 3) this.onStatus?.(false)
+      interval = 1001
     } finally {
       this.inFlight = false
-      this.schedule(this.active ? 1000 : 5000)
+      this.schedule(interval)
     }
   }
 }

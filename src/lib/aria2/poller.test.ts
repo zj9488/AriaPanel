@@ -77,4 +77,67 @@ describe('Poller', () => {
     await vi.advanceTimersByTimeAsync(0)
     p.stop()
   })
+
+  it('calls onStatus(false) after 3 consecutive failures', async () => {
+    const failClient = {
+      tellActive: vi.fn().mockRejectedValue(new Error('rpc')),
+      tellWaiting: vi.fn().mockRejectedValue(new Error('rpc')),
+      tellStopped: vi.fn().mockRejectedValue(new Error('rpc')),
+    } as unknown as Aria2Client
+    const onTick = vi.fn()
+    const onStatus = vi.fn()
+    const p = new Poller(failClient, onTick, onStatus)
+    p.start()
+    await vi.advanceTimersByTimeAsync(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onStatus).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onStatus).toHaveBeenCalledWith(false)
+    p.stop()
+  })
+
+  it('calls onStatus(true) on recovery after failures', async () => {
+    let failCount = 0
+    const flakyClient = {
+      tellActive: vi.fn(async () => {
+        failCount++
+        if (failCount <= 3) throw new Error('rpc')
+        return []
+      }),
+      tellWaiting: vi.fn(async () => []),
+      tellStopped: vi.fn(async () => []),
+    } as unknown as Aria2Client
+    const onTick = vi.fn()
+    const onStatus = vi.fn()
+    const p = new Poller(flakyClient, onTick, onStatus)
+    p.start()
+    await vi.advanceTimersByTimeAsync(1)
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(onStatus).toHaveBeenCalledWith(false)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onStatus).toHaveBeenCalledWith(true)
+    p.stop()
+  })
+
+  it('does not call onStatus for 1-2 transient failures', async () => {
+    let failCount = 0
+    const blipClient = {
+      tellActive: vi.fn(async () => {
+        failCount++
+        if (failCount === 1) throw new Error('blip')
+        return []
+      }),
+      tellWaiting: vi.fn(async () => []),
+      tellStopped: vi.fn(async () => []),
+    } as unknown as Aria2Client
+    const onTick = vi.fn()
+    const onStatus = vi.fn()
+    const p = new Poller(blipClient, onTick, onStatus)
+    p.start()
+    await vi.advanceTimersByTimeAsync(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(onStatus).not.toHaveBeenCalled()
+    p.stop()
+  })
 })
