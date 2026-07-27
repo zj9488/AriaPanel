@@ -7,6 +7,7 @@ export type ConnStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 
 export const useConnectionStore = defineStore('connection', () => {
   const status = ref<ConnStatus>('idle')
   const error = ref<string | null>(null)
+  const showDiagnostics = ref(false)
   const globalStat = ref<GlobalStat>({
     downloadSpeed: '0',
     uploadSpeed: '0',
@@ -31,5 +32,19 @@ export const useConnectionStore = defineStore('connection', () => {
   const setStat = (s: GlobalStat) => {
     globalStat.value = s
   }
-  return { status, error, globalStat, setConnecting, setConnected, setReconnecting, setError, setStat }
+  const setShowDiagnostics = (v: boolean) => {
+    showDiagnostics.value = v
+  }
+  return {
+    status,
+    error,
+    globalStat,
+    showDiagnostics,
+    setConnecting,
+    setConnected,
+    setReconnecting,
+    setError,
+    setStat,
+    setShowDiagnostics,
+  }
 })

@@ -30,6 +30,7 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       'vue/multi-word-component-names': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
     },
   },
   {

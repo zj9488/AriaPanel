@@ -16,4 +16,12 @@ describe('useConnectionStore', () => {
     s.setError('boom')
     expect(s.status).toBe('error')
   })
+  it('tracks diagnostics visibility', () => {
+    const s = useConnectionStore()
+    expect(s.showDiagnostics).toBe(false)
+    s.setShowDiagnostics(true)
+    expect(s.showDiagnostics).toBe(true)
+    s.setShowDiagnostics(false)
+    expect(s.showDiagnostics).toBe(false)
+  })
 })

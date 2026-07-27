@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { shallowRef } from 'vue'
 import { Aria2Client } from '@/lib/aria2/rpc-client'
 import { Poller } from '@/lib/aria2/poller'
 import { WsNotifier } from '@/lib/aria2/ws-notify'
@@ -15,6 +16,7 @@ export interface Aria2Api {
 export function useAria2() {
   const conn = useConnectionStore()
   const tasks = useTaskStore()
+  const apiRef = shallowRef<Aria2Api | null>(null)
   let client: Aria2Client | null = null
   let poller: Poller | null = null
   let ws: WsNotifier | null = null
@@ -22,23 +24,22 @@ export function useAria2() {
 
   async function start() {
     conn.setConnecting()
-    // 等待 Rust 侧 supervisor 就绪事件（或轮询命令）
-    await listen('aria2://failed', () => conn.setError('aria2 启动失败'))
+
+    await listen('aria2://failed', () => {
+      conn.setError('aria2 连接失败')
+      conn.setShowDiagnostics(true)
+    })
+    await listen('aria2://crashed', () => {
+      conn.setReconnecting()
+    })
+    await listen('aria2://restarted', async () => {
+      const ep = await invoke<{ url: string; secret: string; dir: string } | null>('get_rpc_endpoint')
+      if (ep) reconnect(ep)
+    })
+
     const ep = await waitForEndpoint()
     if (!ep) return
-    const wsUrl = ep.url.replace(/^http/, 'ws')
-    client = new Aria2Client(ep.url, ep.secret)
-    downloadDir = ep.dir
-    conn.setConnected()
-    poller = new Poller(client, (a, w, s) => {
-      tasks.apply(a, w, s)
-      refreshStat()
-    })
-    poller.start()
-    ws = new WsNotifier(wsUrl, ep.secret, () => {
-      /* M1：仅作触发；Poller 会刷新 */
-    })
-    ws.start()
+    connectToEndpoint(ep)
   }
 
   async function waitForEndpoint(): Promise<{ url: string; secret: string; dir: string } | null> {
@@ -48,16 +49,37 @@ export function useAria2() {
       await new Promise((r) => setTimeout(r, 100))
     }
     conn.setError('获取 aria2 端点超时')
+    conn.setShowDiagnostics(true)
     return null
+  }
+
+  function connectToEndpoint(ep: { url: string; secret: string; dir: string }) {
+    const wsUrl = ep.url.replace(/^http/, 'ws')
+    client = new Aria2Client(ep.url, ep.secret)
+    downloadDir = ep.dir
+    conn.setConnected()
+    poller = new Poller(
+      client,
+      (a, w, s) => {
+        tasks.apply(a, w, s)
+        refreshStat()
+      },
+      (connected) => {
+        if (connected) conn.setConnected()
+        else conn.setReconnecting()
+      },
+    )
+    poller.start()
+    ws = new WsNotifier(wsUrl, ep.secret, () => {})
+    ws.start()
+    apiRef.value = getApi()
   }
 
   async function refreshStat() {
     if (!client) return
     try {
       conn.setStat(await client.getGlobalStat())
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 
   function getApi(): Aria2Api | null {
@@ -68,17 +90,8 @@ export function useAria2() {
   function reconnect(endpoint: { url: string; secret: string; dir: string }) {
     poller?.stop()
     ws?.stop()
-    client = new Aria2Client(endpoint.url, endpoint.secret)
-    downloadDir = endpoint.dir
-    const wsUrl = endpoint.url.replace(/^http/, 'ws')
-    poller = new Poller(client, (a, w, s) => {
-      tasks.apply(a, w, s)
-      refreshStat()
-    })
-    poller.start()
-    ws = new WsNotifier(wsUrl, endpoint.secret, () => {})
-    ws.start()
+    connectToEndpoint(endpoint)
   }
 
-  return { start, getApi, reconnect }
+  return { start, getApi, reconnect, apiRef }
 }
