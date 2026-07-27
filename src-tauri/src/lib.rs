@@ -110,7 +110,8 @@ pub fn run() {
                 let mut settings = settings::load_settings(&settings_path);
                 let dir = if settings.dir.is_empty() { data_dir.join("downloads") } else { std::path::PathBuf::from(&settings.dir) };
                 let _ = std::fs::create_dir_all(&dir);
-                let cfg = new_config(dir, session, &settings);
+                let dht_file_path = data_dir.join("dht.dat");
+                let cfg = new_config(dir, session, dht_file_path, &settings);
                 if settings.port.is_none() || settings.secret.is_none() {
                     settings.port = Some(cfg.port);
                     settings.secret = Some(cfg.secret.clone());

@@ -9,14 +9,16 @@ pub struct Aria2Config {
     pub secret: String,
     pub dir: PathBuf,
     pub session: PathBuf,
+    pub dht_file_path: PathBuf,
 }
 
-pub fn new_config(dir: PathBuf, session: PathBuf, settings: &Settings) -> Aria2Config {
+pub fn new_config(dir: PathBuf, session: PathBuf, dht_file_path: PathBuf, settings: &Settings) -> Aria2Config {
     Aria2Config {
         port: settings.port.unwrap_or_else(pick_free_port),
         secret: settings.secret.clone().unwrap_or_else(generate_secret),
         dir,
         session,
+        dht_file_path,
     }
 }
 
@@ -34,6 +36,7 @@ pub fn build_args(cfg: &Aria2Config) -> Vec<String> {
         "--allow-overwrite=true".into(),
         format!("--input-file={}", cfg.session.display()),
         format!("--save-session={}", cfg.session.display()),
+        format!("--dht-file-path={}", cfg.dht_file_path.display()),
         "--quiet=true".into(),
     ]
 }
@@ -50,6 +53,20 @@ pub fn build_global_args(s: &Settings) -> Vec<String> {
     if !s.all_proxy.is_empty() {
         args.push(format!("--all-proxy={}", s.all_proxy));
     }
+    args.push(format!("--bt-max-peers={}", s.bt_max_peers));
+    if s.seed_ratio > 0.0 {
+        args.push(format!("--seed-ratio={}", s.seed_ratio));
+    }
+    if s.seed_time > 0 {
+        args.push(format!("--seed-time={}", s.seed_time));
+    }
+    args.push(format!("--enable-dht={}", s.enable_dht));
+    args.push(format!("--listen-port={}", s.bt_listen_port));
+    args.push(format!("--dht-listen-port={}", s.dht_listen_port));
+    if !s.bt_tracker.is_empty() {
+        args.push(format!("--bt-tracker={}", s.bt_tracker));
+    }
+    args.push(format!("--bt-save-metadata={}", s.bt_save_metadata));
     args
 }
 
@@ -197,6 +214,7 @@ mod tests {
             secret: "abc".into(),
             dir: PathBuf::from("/dl"),
             session: PathBuf::from("/s/session.gz"),
+            dht_file_path: PathBuf::from("/s/dht.dat"),
         }
     }
 
@@ -235,6 +253,7 @@ mod tests {
             secret: "testsecret".into(),
             dir: std::env::temp_dir(),
             session: std::env::temp_dir().join("ap_test.session.gz"),
+            dht_file_path: std::env::temp_dir().join("ap_test.dht.dat"),
         };
         std::fs::write(&cfg.session, b"").expect("touch session");
         let _child = std::process::Command::new(binary)
@@ -286,5 +305,51 @@ mod tests {
         let s = Settings::default();
         let a = build_global_args(&s);
         assert!(!a.iter().any(|x| x.starts_with("--all-proxy")));
+    }
+
+    #[test]
+    fn build_global_args_includes_bt_settings() {
+        use crate::settings::Settings;
+        let s = Settings {
+            bt_max_peers: 100,
+            seed_ratio: 1.5,
+            seed_time: 60,
+            enable_dht: true,
+            bt_listen_port: "6881-6999".into(),
+            dht_listen_port: "7000-7999".into(),
+            bt_tracker: "http://t.example.com".into(),
+            bt_save_metadata: true,
+            ..Settings::default()
+        };
+        let a = build_global_args(&s);
+        assert!(a.contains(&"--bt-max-peers=100".to_string()));
+        assert!(a.contains(&"--seed-ratio=1.5".to_string()));
+        assert!(a.contains(&"--seed-time=60".to_string()));
+        assert!(a.contains(&"--enable-dht=true".to_string()));
+        assert!(a.contains(&"--listen-port=6881-6999".to_string()));
+        assert!(a.contains(&"--dht-listen-port=7000-7999".to_string()));
+        assert!(a.contains(&"--bt-tracker=http://t.example.com".to_string()));
+        assert!(a.contains(&"--bt-save-metadata=true".to_string()));
+    }
+
+    #[test]
+    fn build_global_args_omits_zero_seed_time_and_ratio() {
+        use crate::settings::Settings;
+        let s = Settings {
+            seed_ratio: 0.0,
+            seed_time: 0,
+            ..Settings::default()
+        };
+        let a = build_global_args(&s);
+        assert!(!a.iter().any(|x| x.starts_with("--seed-ratio")));
+        assert!(!a.iter().any(|x| x.starts_with("--seed-time")));
+    }
+
+    #[test]
+    fn build_global_args_omits_empty_bt_tracker() {
+        use crate::settings::Settings;
+        let s = Settings::default();
+        let a = build_global_args(&s);
+        assert!(!a.iter().any(|x| x.starts_with("--bt-tracker")));
     }
 }
