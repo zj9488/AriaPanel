@@ -3,11 +3,14 @@ import { mount, DOMWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { shallowRef } from 'vue'
 import { flushPromises } from '@vue/test-utils'
+import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import { NConfigProvider, NMessageProvider, NDialogProvider, NSelect } from 'naive-ui'
 import NewTaskModal from './NewTaskModal.vue'
 import { useCategoryStore } from '@/stores/category'
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 const mockAddUri = vi.fn().mockResolvedValue('gid123')
 const mockApi = {
@@ -174,5 +177,51 @@ describe('NewTaskModal', () => {
     await flushPromises()
     const dirInput = document.body.querySelector('input[placeholder="保存目录"]') as HTMLInputElement
     expect(dirInput?.value).toBe('D:/Music')
+  })
+
+  it('pickTorrent populates file list', async () => {
+    vi.mocked(open).mockResolvedValue(['D:/test.torrent'])
+    vi.mocked(invoke).mockResolvedValue('base64data')
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('test.torrent')
+  })
+
+  it('type tag shows BT when files selected', async () => {
+    vi.mocked(open).mockResolvedValue(['D:/test.torrent'])
+    vi.mocked(invoke).mockResolvedValue('base64data')
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('BT')
+  })
+
+  it('remove file reduces list', async () => {
+    vi.mocked(open).mockResolvedValue(['D:/test.torrent'])
+    vi.mocked(invoke).mockResolvedValue('base64data')
+    const w = mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('test.torrent')
+    const tags = w.findComponent(NewTaskModal).findAllComponents({ name: 'Tag' })
+    const fileTag = tags.find((t) => t.text().includes('test.torrent'))
+    fileTag?.vm.$emit('close')
+    await flushPromises()
+    expect(document.body.textContent).not.toContain('test.torrent')
+  })
+
+  it('reset on close clears torrent files', async () => {
+    vi.mocked(open).mockResolvedValue(['D:/test.torrent'])
+    vi.mocked(invoke).mockResolvedValue('base64data')
+    const w = mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('test.torrent')
+    await w.setProps({ show: false })
+    await flushPromises()
+    await w.setProps({ show: true })
+    await flushPromises()
+    expect(document.body.textContent).not.toContain('test.torrent')
   })
 })

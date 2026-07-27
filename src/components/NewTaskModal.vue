@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { NModal, NInput, NButton, NSelect, NInputNumber, NCollapse, NCollapseItem, NTag, useMessage } from 'naive-ui'
 import { ref, computed, watch, inject, type Ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-dialog'
 import { useDirBrowser } from '@/composables/useDirBrowser'
 import { useCategoryDir } from '@/composables/useCategoryDir'
 import type { Aria2Api } from '@/composables/useAria2'
@@ -19,6 +21,7 @@ const maxConnPerServer = ref(5)
 const proxy = ref('')
 const expandedNames = ref<string[]>([])
 const submitting = ref(false)
+const torrentFiles = ref<{ name: string; base64: string }[]>([])
 
 const { browse } = useDirBrowser(dir)
 const { selectedCategory, categoryOptions } = useCategoryDir(dir)
@@ -38,6 +41,7 @@ const urlList = computed(() =>
 )
 
 const detectedType = computed<'http' | 'bt' | 'mixed' | null>(() => {
+  if (torrentFiles.value.length > 0) return 'bt'
   if (urlList.value.length === 0) return null
   const types = new Set(urlList.value.map((u) => (u.startsWith('magnet:') ? 'bt' : 'http')))
   return types.size === 1 ? ([...types][0] as 'http' | 'bt') : 'mixed'
@@ -84,6 +88,7 @@ watch(
       split.value = 5
       maxConnPerServer.value = 5
       proxy.value = ''
+      torrentFiles.value = []
       expandedNames.value = []
     }
   },
@@ -101,6 +106,27 @@ function buildOptions(): Record<string, unknown> {
   }
   if (proxy.value.trim()) opts['all-proxy'] = proxy.value.trim()
   return opts
+}
+
+async function pickTorrent() {
+  const selected = await open({
+    multiple: true,
+    filters: [{ name: 'Torrent', extensions: ['torrent'] }],
+  })
+  const paths = Array.isArray(selected) ? selected : selected ? [selected] : []
+  for (const path of paths) {
+    try {
+      const base64 = await invoke<string>('read_torrent_base64', { path })
+      const name = path.split(/[\\/]/).pop() ?? path
+      torrentFiles.value.push({ name, base64 })
+    } catch (e) {
+      message.error(`读取种子文件失败：${String(e)}`)
+    }
+  }
+}
+
+function removeTorrent(index: number) {
+  torrentFiles.value.splice(index, 1)
 }
 
 async function submit() {
@@ -150,6 +176,18 @@ async function submit() {
       <div style="display: flex; align-items: center; gap: 8px">
         <NTag v-if="detectedType" :type="typeTagType" size="small">{{ typeLabel }}</NTag>
         <span style="font-size: 12px; opacity: 0.6">{{ urlList.length }} 个链接</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px">
+        <NButton size="small" quaternary data-test="pick-torrent" @click="pickTorrent">选择种子文件</NButton>
+        <span v-if="torrentFiles.length > 0" style="font-size: 12px; opacity: 0.6">
+          已选择 {{ torrentFiles.length }} 个种子文件（链接将被忽略）
+        </span>
+      </div>
+      <div v-if="torrentFiles.length > 0" style="display: flex; flex-wrap: wrap; gap: 6px">
+        <NTag v-for="(f, i) in torrentFiles" :key="i" size="small" closable @close="removeTorrent(i)">
+          {{ f.name }}
+        </NTag>
       </div>
 
       <NCollapse v-model:expanded-names="expandedNames" :display-directive="'show'">
