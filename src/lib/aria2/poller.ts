@@ -10,16 +10,26 @@ export class Poller {
     private onTick: (a: Aria2Task[], w: Aria2Task[], s: Aria2Task[]) => void,
   ) {}
 
-  start() { this.schedule(0) }
-  stop() { if (this.timer) clearTimeout(this.timer); this.timer = null }
+  start() {
+    this.schedule(0)
+  }
+  stop() {
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = null
+  }
 
   refreshNow() {
-    if (this.timer) { clearTimeout(this.timer); this.timer = null }
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
     this.schedule(0)
   }
 
   private schedule(ms: number) {
-    this.timer = setTimeout(() => { this.tick() }, ms)
+    this.timer = setTimeout(() => {
+      this.tick()
+    }, ms)
   }
 
   private async tick() {

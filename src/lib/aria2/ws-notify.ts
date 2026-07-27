@@ -1,6 +1,10 @@
 type NotifyMethod =
-  | 'aria2.onDownloadStart' | 'aria2.onDownloadPause' | 'aria2.onDownloadStop'
-  | 'aria2.onDownloadComplete' | 'aria2.onDownloadError' | 'aria2.onBtDownloadComplete'
+  | 'aria2.onDownloadStart'
+  | 'aria2.onDownloadPause'
+  | 'aria2.onDownloadStop'
+  | 'aria2.onDownloadComplete'
+  | 'aria2.onDownloadError'
+  | 'aria2.onBtDownloadComplete'
 
 export class WsNotifier {
   private ws: WebSocket | null = null
@@ -27,13 +31,20 @@ export class WsNotifier {
     if (this.stopped) return
     try {
       this.ws = new WebSocket(this.wsUrl)
-    } catch { this.scheduleReconnect(); return }
-    this.ws.onopen = () => { this.retry = 0 }
+    } catch {
+      this.scheduleReconnect()
+      return
+    }
+    this.ws.onopen = () => {
+      this.retry = 0
+    }
     this.ws.onmessage = (ev) => {
       try {
         const m = JSON.parse(ev.data)
         if (typeof m?.method === 'string') this.onEvent(m.method as NotifyMethod)
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     this.ws.onclose = () => this.scheduleReconnect()
     this.ws.onerror = () => this.ws?.close()

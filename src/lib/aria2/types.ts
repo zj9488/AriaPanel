@@ -1,5 +1,13 @@
-export interface RpcError { code: number; message: string }
-export interface RpcResponse<T> { jsonrpc: '2.0'; id: number; result?: T; error?: RpcError }
+export interface RpcError {
+  code: number
+  message: string
+}
+export interface RpcResponse<T> {
+  jsonrpc: '2.0'
+  id: number
+  result?: T
+  error?: RpcError
+}
 
 export interface Aria2Task {
   gid: string

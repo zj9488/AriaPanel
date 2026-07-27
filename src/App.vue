@@ -3,6 +3,7 @@ import { onMounted, provide, shallowRef, type Ref } from 'vue'
 import { listen } from '@tauri-apps/api/event'
 import { useAria2, type Aria2Api } from '@/composables/useAria2'
 import AppShell from '@/components/AppShell.vue'
+import TaskListView from '@/views/TaskListView.vue'
 
 const aria = useAria2()
 const apiRef = shallowRef<Aria2Api | null>(null)
@@ -30,6 +31,6 @@ onMounted(async () => {
 
 <template>
   <AppShell>
-    <router-view />
+    <TaskListView />
   </AppShell>
 </template>

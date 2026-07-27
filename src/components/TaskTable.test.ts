@@ -6,8 +6,22 @@ import type { Aria2Task } from '@/lib/aria2/types'
 
 function mkTask(gid: string, status: Aria2Task['status']): Aria2Task {
   return {
-    gid, status, totalLength: '1000', completedLength: '500', downloadSpeed: '100', uploadSpeed: '0',
-    dir: 'D:/dl', files: [{ path: 'D:/dl/file.bin', length: '1000', completedLength: '500', selected: 'true', uris: [{ uri: 'http://x/file.bin', status: 'used' }] }],
+    gid,
+    status,
+    totalLength: '1000',
+    completedLength: '500',
+    downloadSpeed: '100',
+    uploadSpeed: '0',
+    dir: 'D:/dl',
+    files: [
+      {
+        path: 'D:/dl/file.bin',
+        length: '1000',
+        completedLength: '500',
+        selected: 'true',
+        uris: [{ uri: 'http://x/file.bin', status: 'used' }],
+      },
+    ],
   }
 }
 

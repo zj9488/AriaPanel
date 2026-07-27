@@ -30,9 +30,14 @@ export function useAria2() {
     client = new Aria2Client(ep.url, ep.secret)
     downloadDir = ep.dir
     conn.setConnected()
-    poller = new Poller(client, (a, w, s) => { tasks.apply(a, w, s); refreshStat() })
+    poller = new Poller(client, (a, w, s) => {
+      tasks.apply(a, w, s)
+      refreshStat()
+    })
     poller.start()
-    ws = new WsNotifier(wsUrl, ep.secret, () => {/* M1：仅作触发；Poller 会刷新 */})
+    ws = new WsNotifier(wsUrl, ep.secret, () => {
+      /* M1：仅作触发；Poller 会刷新 */
+    })
     ws.start()
   }
 
@@ -40,7 +45,7 @@ export function useAria2() {
     for (let i = 0; i < 100; i++) {
       const ep = await invoke<{ url: string; secret: string; dir: string } | null>('get_rpc_endpoint')
       if (ep) return ep
-      await new Promise(r => setTimeout(r, 100))
+      await new Promise((r) => setTimeout(r, 100))
     }
     conn.setError('获取 aria2 端点超时')
     return null
@@ -48,7 +53,11 @@ export function useAria2() {
 
   async function refreshStat() {
     if (!client) return
-    try { conn.setStat(await client.getGlobalStat()) } catch { /* ignore */ }
+    try {
+      conn.setStat(await client.getGlobalStat())
+    } catch {
+      /* ignore */
+    }
   }
 
   function getApi(): Aria2Api | null {
@@ -62,7 +71,10 @@ export function useAria2() {
     client = new Aria2Client(endpoint.url, endpoint.secret)
     downloadDir = endpoint.dir
     const wsUrl = endpoint.url.replace(/^http/, 'ws')
-    poller = new Poller(client, (a, w, s) => { tasks.apply(a, w, s); refreshStat() })
+    poller = new Poller(client, (a, w, s) => {
+      tasks.apply(a, w, s)
+      refreshStat()
+    })
     poller.start()
     ws = new WsNotifier(wsUrl, endpoint.secret, () => {})
     ws.start()

@@ -7,12 +7,16 @@ export function useTheme() {
   const prefs = usePrefStore()
   const systemDark = ref(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
   const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
-  mq?.addEventListener?.('change', e => { systemDark.value = e.matches })
+  mq?.addEventListener?.('change', (e) => {
+    systemDark.value = e.matches
+  })
 
   const isDark = computed(() => prefs.themeMode === 'dark' || (prefs.themeMode === 'system' && systemDark.value))
-  const mode = computed(() => isDark.value ? 'dark' : 'light')
+  const mode = computed(() => (isDark.value ? 'dark' : 'light'))
 
-  function setTheme(m: ThemeMode) { prefs.setTheme(m) }
+  function setTheme(m: ThemeMode) {
+    prefs.setTheme(m)
+  }
 
   return { mode, themeMode: computed(() => prefs.themeMode), setTheme }
 }

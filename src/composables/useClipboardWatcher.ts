@@ -28,33 +28,55 @@ export function useClipboardWatcher(
         lastNotified = url
         notification.info({
           title: '检测到下载链接',
-          content: () => h('div', [
-            h('div', { style: 'margin-bottom:8px;word-break:break-all' }, url),
-            h(NButton, {
-              size: 'small',
-              type: 'primary',
-              onClick: () => onUrl(url),
-            }, () => '填入链接'),
-          ]),
+          content: () =>
+            h('div', [
+              h('div', { style: 'margin-bottom:8px;word-break:break-all' }, url),
+              h(
+                NButton,
+                {
+                  size: 'small',
+                  type: 'primary',
+                  onClick: () => onUrl(url),
+                },
+                () => '填入链接',
+              ),
+            ]),
           duration: 10000,
         })
       }
-    } catch { } finally {
+    } catch {
+      /* ignore */
+    } finally {
       inFlight = false
     }
   }
 
   function start() {
     if (timer) clearInterval(timer)
-    if (unlistenFocus) { unlistenFocus(); unlistenFocus = null }
+    if (unlistenFocus) {
+      unlistenFocus()
+      unlistenFocus = null
+    }
     timer = setInterval(check, 2000)
     const win = getCurrentWindow()
-    win.onFocusChanged(({ payload: focused }) => { if (focused) check() }).then(fn => { unlistenFocus = fn })
+    win
+      .onFocusChanged(({ payload: focused }) => {
+        if (focused) check()
+      })
+      .then((fn) => {
+        unlistenFocus = fn
+      })
   }
 
   function stop() {
-    if (timer) { clearInterval(timer); timer = null }
-    if (unlistenFocus) { unlistenFocus(); unlistenFocus = null }
+    if (timer) {
+      clearInterval(timer)
+      timer = null
+    }
+    if (unlistenFocus) {
+      unlistenFocus()
+      unlistenFocus = null
+    }
   }
 
   return { start, stop }

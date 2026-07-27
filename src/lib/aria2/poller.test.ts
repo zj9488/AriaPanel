@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Poller } from './poller'
 import type { Aria2Client } from './rpc-client'
+import type { Aria2Task } from './types'
 
 function makeClient(active = 0) {
   return {
@@ -56,7 +57,12 @@ describe('Poller', () => {
   it('does not re-enter tick while one is in flight', async () => {
     let resolveTell!: () => void
     const slowClient = {
-      tellActive: vi.fn(() => new Promise<any[]>(r => { resolveTell = () => r([]) })),
+      tellActive: vi.fn(
+        () =>
+          new Promise<Aria2Task[]>((r) => {
+            resolveTell = () => r([])
+          }),
+      ),
       tellWaiting: vi.fn(async () => []),
       tellStopped: vi.fn(async () => []),
     } as unknown as Aria2Client

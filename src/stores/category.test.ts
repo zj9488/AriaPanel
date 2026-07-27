@@ -4,16 +4,28 @@ import { useCategoryStore } from './category'
 import type { Aria2Task } from '@/lib/aria2/types'
 
 function mkTask(gid: string, dir: string): Aria2Task {
-  return { gid, status: 'active', totalLength: '0', completedLength: '0', downloadSpeed: '0', uploadSpeed: '0', dir, files: [{ path: `${dir}/f.bin`, length: '0', completedLength: '0', selected: 'true', uris: [] }] }
+  return {
+    gid,
+    status: 'active',
+    totalLength: '0',
+    completedLength: '0',
+    downloadSpeed: '0',
+    uploadSpeed: '0',
+    dir,
+    files: [{ path: `${dir}/f.bin`, length: '0', completedLength: '0', selected: 'true', uris: [] }],
+  }
 }
 
 describe('useCategoryStore', () => {
-  beforeEach(() => { localStorage.clear(); setActivePinia(createPinia()) })
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
 
   it('initializes with 5 default categories', () => {
     const s = useCategoryStore()
     expect(s.categories).toHaveLength(5)
-    expect(s.categories.map(c => c.name)).toEqual(['下载', '音乐', '视频', '图片', '文档'])
+    expect(s.categories.map((c) => c.name)).toEqual(['下载', '音乐', '视频', '图片', '文档'])
   })
 
   it('addCategory appends and persists', () => {

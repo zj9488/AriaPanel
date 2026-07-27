@@ -2,11 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { Aria2Client } from './rpc-client'
 
 function fakeFetch(resp: unknown) {
-  return vi.fn(async (_url: string, _init?: RequestInit) => ({
-    ok: true,
-    status: 200,
-    json: async () => resp,
-  } as unknown as Response))
+  return vi.fn(
+    async (_url: string, _init?: RequestInit) =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => resp,
+      }) as unknown as Response,
+  )
 }
 
 describe('Aria2Client', () => {

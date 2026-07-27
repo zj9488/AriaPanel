@@ -9,14 +9,22 @@ import { useConnectionStore } from '@/stores/connection'
 import type { Aria2Task } from '@/lib/aria2/types'
 
 function mkTask(gid: string, dir: string): Aria2Task {
-  return { gid, status: 'active', totalLength: '0', completedLength: '0', downloadSpeed: '0', uploadSpeed: '0', dir, files: [{ path: `${dir}/${gid}.bin`, length: '0', completedLength: '0', selected: 'true', uris: [] }] }
+  return {
+    gid,
+    status: 'active',
+    totalLength: '0',
+    completedLength: '0',
+    downloadSpeed: '0',
+    uploadSpeed: '0',
+    dir,
+    files: [{ path: `${dir}/${gid}.bin`, length: '0', completedLength: '0', selected: 'true', uris: [] }],
+  }
 }
 
 function mountSidebar() {
-  return mount(
-    {
-      components: { NConfigProvider, NMessageProvider, NDialogProvider, Sidebar },
-      template: `
+  return mount({
+    components: { NConfigProvider, NMessageProvider, NDialogProvider, Sidebar },
+    template: `
         <NConfigProvider>
           <NMessageProvider>
             <NDialogProvider>
@@ -25,12 +33,15 @@ function mountSidebar() {
           </NMessageProvider>
         </NConfigProvider>
       `,
-    },
-  )
+  })
 }
 
 describe('Sidebar', () => {
-  beforeEach(() => { localStorage.clear(); setActivePinia(createPinia()); document.body.innerHTML = '' })
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+    document.body.innerHTML = ''
+  })
 
   it('renders status filter items', () => {
     const w = mountSidebar()

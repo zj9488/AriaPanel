@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider, NGlobalStyle, darkTheme } from 'naive-ui'
+import {
+  NConfigProvider,
+  NMessageProvider,
+  NDialogProvider,
+  NNotificationProvider,
+  NGlobalStyle,
+  darkTheme,
+} from 'naive-ui'
 import { useTheme } from '@/composables/useTheme'
 const { mode } = useTheme()
 </script>

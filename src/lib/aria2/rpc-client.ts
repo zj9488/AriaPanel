@@ -22,19 +22,45 @@ export class Aria2Client {
     return data.result as T
   }
 
-  getVersion() { return this.call<{ version: string }>('aria2.getVersion') }
-  getGlobalStat() { return this.call<GlobalStat>('aria2.getGlobalStat') }
-  tellActive() { return this.call<Aria2Task[]>('aria2.tellActive') }
-  tellWaiting(offset: number, num: number) { return this.call<Aria2Task[]>('aria2.tellWaiting', [offset, num]) }
-  tellStopped(offset: number, num: number) { return this.call<Aria2Task[]>('aria2.tellStopped', [offset, num]) }
-  pause(gid: string) { return this.call('aria2.pause', [gid]) }
-  unpause(gid: string) { return this.call('aria2.unpause', [gid]) }
-  remove(gid: string) { return this.call('aria2.remove', [gid]) }
-  removeDownloadResult(gid: string) { return this.call('aria2.removeDownloadResult', [gid]) }
-  forcePause(gid: string) { return this.call('aria2.forcePause', [gid]) }
-  forceRemove(gid: string) { return this.call('aria2.forceRemove', [gid]) }
-  pauseAll() { return this.call('aria2.pauseAll') }
-  unpauseAll() { return this.call('aria2.unpauseAll') }
+  getVersion() {
+    return this.call<{ version: string }>('aria2.getVersion')
+  }
+  getGlobalStat() {
+    return this.call<GlobalStat>('aria2.getGlobalStat')
+  }
+  tellActive() {
+    return this.call<Aria2Task[]>('aria2.tellActive')
+  }
+  tellWaiting(offset: number, num: number) {
+    return this.call<Aria2Task[]>('aria2.tellWaiting', [offset, num])
+  }
+  tellStopped(offset: number, num: number) {
+    return this.call<Aria2Task[]>('aria2.tellStopped', [offset, num])
+  }
+  pause(gid: string) {
+    return this.call('aria2.pause', [gid])
+  }
+  unpause(gid: string) {
+    return this.call('aria2.unpause', [gid])
+  }
+  remove(gid: string) {
+    return this.call('aria2.remove', [gid])
+  }
+  removeDownloadResult(gid: string) {
+    return this.call('aria2.removeDownloadResult', [gid])
+  }
+  forcePause(gid: string) {
+    return this.call('aria2.forcePause', [gid])
+  }
+  forceRemove(gid: string) {
+    return this.call('aria2.forceRemove', [gid])
+  }
+  pauseAll() {
+    return this.call('aria2.pauseAll')
+  }
+  unpauseAll() {
+    return this.call('aria2.unpauseAll')
+  }
 
   purge(gid: string, status: Aria2Task['status']) {
     const stopped = status === 'complete' || status === 'error' || status === 'removed'
@@ -44,11 +70,21 @@ export class Aria2Client {
     const stopped = status === 'complete' || status === 'error' || status === 'removed'
     return stopped ? this.removeDownloadResult(gid) : this.forceRemove(gid)
   }
-  getOption(gid: string) { return this.call<Record<string, string>>('aria2.getOption', [gid]) }
-  tellStatus(gid: string) { return this.call<Aria2TaskDetail>('aria2.tellStatus', [gid]) }
-  changeOption(gid: string, options: Record<string, string>) { return this.call('aria2.changeOption', [gid, options]) }
-  getGlobalOption() { return this.call<Record<string, string>>('aria2.getGlobalOption') }
-  changeGlobalOption(options: Record<string, string>) { return this.call('aria2.changeGlobalOption', [options]) }
+  getOption(gid: string) {
+    return this.call<Record<string, string>>('aria2.getOption', [gid])
+  }
+  tellStatus(gid: string) {
+    return this.call<Aria2TaskDetail>('aria2.tellStatus', [gid])
+  }
+  changeOption(gid: string, options: Record<string, string>) {
+    return this.call('aria2.changeOption', [gid, options])
+  }
+  getGlobalOption() {
+    return this.call<Record<string, string>>('aria2.getGlobalOption')
+  }
+  changeGlobalOption(options: Record<string, string>) {
+    return this.call('aria2.changeGlobalOption', [options])
+  }
 
   addUri(uris: string[], options?: Record<string, unknown>) {
     const params = options ? [uris, options] : [uris]

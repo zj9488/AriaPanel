@@ -6,23 +6,49 @@ import type { Aria2Task } from '@/lib/aria2/types'
 
 function mkTask(gid: string, status: Aria2Task['status'], dir: string): Aria2Task {
   return {
-    gid, status, totalLength: '1000', completedLength: '500', downloadSpeed: '100', uploadSpeed: '0', dir,
-    files: [{ path: `${dir}/${gid}.bin`, length: '1000', completedLength: '500', selected: 'true', uris: [{ uri: `http://x/${gid}.bin`, status: 'used' }] }],
+    gid,
+    status,
+    totalLength: '1000',
+    completedLength: '500',
+    downloadSpeed: '100',
+    uploadSpeed: '0',
+    dir,
+    files: [
+      {
+        path: `${dir}/${gid}.bin`,
+        length: '1000',
+        completedLength: '500',
+        selected: 'true',
+        uris: [{ uri: `http://x/${gid}.bin`, status: 'used' }],
+      },
+    ],
   }
 }
 
 function t(gid: string, status: Aria2Task['status']): Aria2Task {
-  return { gid, status, totalLength: '100', completedLength: '0', downloadSpeed: '0', uploadSpeed: '0', dir: '/dl', files: [{ path: 'D:/dl/f', length: '100', completedLength: '0', selected: 'true', uris: [] }] }
+  return {
+    gid,
+    status,
+    totalLength: '100',
+    completedLength: '0',
+    downloadSpeed: '0',
+    uploadSpeed: '0',
+    dir: '/dl',
+    files: [{ path: 'D:/dl/f', length: '100', completedLength: '0', selected: 'true', uris: [] }],
+  }
 }
 
 describe('useTaskStore filter pipeline', () => {
-  beforeEach(() => { localStorage.clear(); setActivePinia(createPinia()) })
+  beforeEach(() => {
+    localStorage.clear()
+    setActivePinia(createPinia())
+  })
 
   it('status filter only', () => {
     const ts = useTaskStore()
     ts.apply([mkTask('g1', 'active', 'D:/dl')], [mkTask('g2', 'waiting', 'D:/dl')], [])
     ts.setFilter('active')
-    expect(ts.visibleTasks.map(t => t.gid)).toEqual(['g1'])
+    expect(ts.visibleTasks.map((t) => t.gid)).toEqual(['g1'])
   })
 
   it('category filter', () => {
@@ -31,31 +57,29 @@ describe('useTaskStore filter pipeline', () => {
     const ts = useTaskStore()
     ts.apply([mkTask('g1', 'active', 'D:/Music'), mkTask('g2', 'active', 'D:/dl')], [], [])
     ts.categoryFilter = 'music'
-    expect(ts.visibleTasks.map(t => t.gid)).toEqual(['g1'])
+    expect(ts.visibleTasks.map((t) => t.gid)).toEqual(['g1'])
   })
 
   it('search filter by filename', () => {
     const ts = useTaskStore()
     ts.apply([mkTask('alpha', 'active', 'D:/dl'), mkTask('beta', 'active', 'D:/dl')], [], [])
     ts.searchQuery = 'alp'
-    expect(ts.visibleTasks.map(t => t.gid)).toEqual(['alpha'])
+    expect(ts.visibleTasks.map((t) => t.gid)).toEqual(['alpha'])
   })
 
   it('three-stage pipeline: status + category + search', () => {
     const cs = useCategoryStore()
     cs.updateCategory('music', '音乐', 'D:/Music')
     const ts = useTaskStore()
-    ts.apply([
-      mkTask('g1', 'active', 'D:/Music'),
-      mkTask('g2', 'active', 'D:/Music'),
-      mkTask('g3', 'active', 'D:/dl'),
-    ], [], [
-      mkTask('g4', 'complete', 'D:/Music'),
-    ])
+    ts.apply(
+      [mkTask('g1', 'active', 'D:/Music'), mkTask('g2', 'active', 'D:/Music'), mkTask('g3', 'active', 'D:/dl')],
+      [],
+      [mkTask('g4', 'complete', 'D:/Music')],
+    )
     ts.setFilter('active')
     ts.categoryFilter = 'music'
     ts.searchQuery = 'g2'
-    expect(ts.visibleTasks.map(t => t.gid)).toEqual(['g2'])
+    expect(ts.visibleTasks.map((t) => t.gid)).toEqual(['g2'])
   })
 
   it('clearing categoryFilter shows all', () => {
@@ -76,9 +100,9 @@ describe('useTaskStore', () => {
   it('applies and partitions tasks', () => {
     const s = useTaskStore()
     s.apply([t('1', 'active')], [t('2', 'waiting')], [t('3', 'complete')])
-    expect(s.active.map(x => x.gid)).toEqual(['1'])
-    expect(s.waiting.map(x => x.gid)).toEqual(['2'])
-    expect(s.stopped.map(x => x.gid)).toEqual(['3'])
+    expect(s.active.map((x) => x.gid)).toEqual(['1'])
+    expect(s.waiting.map((x) => x.gid)).toEqual(['2'])
+    expect(s.stopped.map((x) => x.gid)).toEqual(['3'])
     expect(s.order).toEqual(['1', '2', '3'])
   })
 
@@ -105,11 +129,11 @@ describe('useTaskStore', () => {
     const s = useTaskStore()
     s.apply([t('1', 'active')], [t('2', 'waiting')], [t('3', 'complete')])
     s.setFilter('active')
-    expect(s.visibleTasks.map(x => x.gid)).toEqual(['1'])
+    expect(s.visibleTasks.map((x) => x.gid)).toEqual(['1'])
     s.setFilter('stopped')
-    expect(s.visibleTasks.map(x => x.gid)).toEqual(['3'])
+    expect(s.visibleTasks.map((x) => x.gid)).toEqual(['3'])
     s.setFilter('all')
-    expect(s.visibleTasks.map(x => x.gid)).toEqual(['1', '2', '3'])
+    expect(s.visibleTasks.map((x) => x.gid)).toEqual(['1', '2', '3'])
   })
 
   it('apply prunes selection of removed gids', () => {

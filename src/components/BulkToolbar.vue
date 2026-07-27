@@ -26,8 +26,11 @@ async function deleteSelected() {
 </script>
 
 <template>
-  <div v-if="tasks.selection.size > 0" style="padding:6px 12px;display:flex;align-items:center;gap:8px;background:var(--n-color-target,#f5f5f5)">
-    <span style="font-size:13px">已选 {{ tasks.selection.size }} 项</span>
+  <div
+    v-if="tasks.selection.size > 0"
+    style="padding: 6px 12px; display: flex; align-items: center; gap: 8px; background: var(--n-color-target, #f5f5f5)"
+  >
+    <span style="font-size: 13px">已选 {{ tasks.selection.size }} 项</span>
     <NPopconfirm @positive-click="deleteSelected">
       <template #trigger><NButton size="tiny" type="error">删除选中</NButton></template>
       确认删除选中的 {{ tasks.selection.size }} 个任务？（已下载部分保留，可重试续传）

@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { Aria2Task } from '@/lib/aria2/types'
 
 export interface Category {
   id: string
@@ -25,13 +24,15 @@ function load(): Category[] {
     const parsed = JSON.parse(raw) as Category[]
     if (!Array.isArray(parsed) || parsed.length === 0) return [...DEFAULT_CATEGORIES]
     return parsed
-  } catch { return [...DEFAULT_CATEGORIES] }
+  } catch {
+    return [...DEFAULT_CATEGORIES]
+  }
 }
 
 export const useCategoryStore = defineStore('category', () => {
   const categories = ref<Category[]>(load())
 
-  watch(categories, v => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true, flush: 'sync' })
+  watch(categories, (v) => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true, flush: 'sync' })
 
   function addCategory(name: string, dir: string) {
     const id = name.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now().toString(36)
@@ -39,31 +40,34 @@ export const useCategoryStore = defineStore('category', () => {
   }
 
   function updateCategory(id: string, name: string, dir: string) {
-    const cat = categories.value.find(c => c.id === id)
-    if (cat) { cat.name = name; cat.dir = dir }
+    const cat = categories.value.find((c) => c.id === id)
+    if (cat) {
+      cat.name = name
+      cat.dir = dir
+    }
   }
 
   function removeCategory(id: string): boolean {
-    const cat = categories.value.find(c => c.id === id)
+    const cat = categories.value.find((c) => c.id === id)
     if (!cat) return false
     if (!cat.dir) {
-      const emptyDirCount = categories.value.filter(c => !c.dir).length
+      const emptyDirCount = categories.value.filter((c) => !c.dir).length
       if (emptyDirCount <= 1) return false
     }
-    categories.value = categories.value.filter(c => c.id !== id)
+    categories.value = categories.value.filter((c) => c.id !== id)
     return true
   }
 
   function getCategory(id: string): Category | undefined {
-    return categories.value.find(c => c.id === id)
+    return categories.value.find((c) => c.id === id)
   }
 
   function matchCategory(task: { dir: string }, categoryId: string): boolean {
-    const cat = categories.value.find(c => c.id === categoryId)
+    const cat = categories.value.find((c) => c.id === categoryId)
     if (!cat) return false
     if (cat.dir) return task.dir === cat.dir
-    const nonEmpty = categories.value.filter(c => c.dir)
-    return !nonEmpty.some(c => c.dir === task.dir)
+    const nonEmpty = categories.value.filter((c) => c.dir)
+    return !nonEmpty.some((c) => c.dir === task.dir)
   }
 
   return { categories, addCategory, updateCategory, removeCategory, getCategory, matchCategory }

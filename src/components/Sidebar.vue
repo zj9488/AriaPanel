@@ -23,7 +23,11 @@ const statusItems = computed(() => [
 ])
 
 const CATEGORY_ICONS: Record<string, string> = {
-  downloads: '📁', music: '🎵', video: '🎬', image: '🖼', doc: '📄',
+  downloads: '📁',
+  music: '🎵',
+  video: '🎬',
+  image: '🖼',
+  doc: '📄',
 }
 
 function iconFor(cat: Category): string {
@@ -51,7 +55,10 @@ function onCategoryContext(e: MouseEvent, id: string) {
 }
 
 function catMenuOptions() {
-  return [{ label: '编辑', key: 'edit' }, { label: '删除', key: 'delete' }]
+  return [
+    { label: '编辑', key: 'edit' },
+    { label: '删除', key: 'delete' },
+  ]
 }
 
 function catMenuPick(key: string) {
@@ -66,7 +73,10 @@ function catMenuPick(key: string) {
     const label = cat?.name ?? '该分类'
     dialog.warning({
       title: '删除分类',
-      content: count > 0 ? `「${label}」下有 ${count} 个任务，删除后这些任务将变为未分类。确定删除？` : `确定删除「${label}」？`,
+      content:
+        count > 0
+          ? `「${label}」下有 ${count} 个任务，删除后这些任务将变为未分类。确定删除？`
+          : `确定删除「${label}」？`,
       positiveText: '删除',
       negativeText: '取消',
       onPositiveClick: () => {
@@ -96,48 +106,85 @@ function onCategorySubmit(name: string, dir: string) {
 </script>
 
 <template>
-  <nav style="width:170px;flex-shrink:0;border-right:1px solid var(--n-border-color,#eee);padding:8px 0;display:flex;flex-direction:column">
+  <nav
+    style="
+      width: 170px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--n-border-color, #eee);
+      padding: 8px 0;
+      display: flex;
+      flex-direction: column;
+    "
+  >
     <button
-      v-for="it in statusItems" :key="it.key"
-      @click="tasks.setFilter(it.key)"
+      v-for="it in statusItems"
+      :key="it.key"
       :style="{
-        display:'flex',justifyContent:'space-between',alignItems:'center',
-        width:'100%',padding:'6px 14px',border:'none',background:'transparent',cursor:'pointer',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        padding: '6px 14px',
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
         fontWeight: tasks.filter === it.key ? 700 : 400,
         color: tasks.filter === it.key ? 'var(--n-primary-color,#18a058)' : 'inherit',
       }"
+      @click="tasks.setFilter(it.key)"
     >
       <span>{{ it.label }}</span>
-      <span style="opacity:.6;font-size:12px">{{ it.count }}</span>
+      <span style="opacity: 0.6; font-size: 12px">{{ it.count }}</span>
     </button>
 
-    <div style="margin-top:12px;padding:0 14px;font-size:12px;opacity:.5">分类</div>
+    <div style="margin-top: 12px; padding: 0 14px; font-size: 12px; opacity: 0.5">分类</div>
     <button
-      v-for="cat in cats.categories" :key="cat.id"
+      v-for="cat in cats.categories"
+      :key="cat.id"
       data-cat
-      @click="selectCategory(cat.id)"
-      @contextmenu="onCategoryContext($event, cat.id)"
       :style="{
-        display:'flex',justifyContent:'space-between',alignItems:'center',
-        width:'100%',padding:'4px 14px',border:'none',background:'transparent',cursor:'pointer',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        padding: '4px 14px',
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
         fontWeight: tasks.categoryFilter === cat.id ? 700 : 400,
         color: tasks.categoryFilter === cat.id ? 'var(--n-primary-color,#18a058)' : 'inherit',
       }"
+      @click="selectCategory(cat.id)"
+      @contextmenu="onCategoryContext($event, cat.id)"
     >
       <span>{{ iconFor(cat) }} {{ cat.name }}</span>
-      <span style="opacity:.6;font-size:12px">{{ catCount(cat.id) }}</span>
+      <span style="opacity: 0.6; font-size: 12px">{{ catCount(cat.id) }}</span>
     </button>
-    <button @click="openAddCategory" style="display:flex;align-items:center;gap:4px;width:100%;padding:4px 14px;border:none;background:transparent;cursor:pointer;font-size:13px;opacity:.6">
+    <button
+      style="
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        width: 100%;
+        padding: 4px 14px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 13px;
+        opacity: 0.6;
+      "
+      @click="openAddCategory"
+    >
       + 添加分类
     </button>
 
-    <div style="margin-top:12px;padding:0 14px;font-size:12px;display:flex;flex-direction:column;gap:2px">
-      <span style="opacity:.6">↓ {{ fmtSpeed(conn.globalStat.downloadSpeed) }}</span>
-      <span style="opacity:.6">↑ {{ fmtSpeed(conn.globalStat.uploadSpeed) }}</span>
+    <div style="margin-top: 12px; padding: 0 14px; font-size: 12px; display: flex; flex-direction: column; gap: 2px">
+      <span style="opacity: 0.6">↓ {{ fmtSpeed(conn.globalStat.downloadSpeed) }}</span>
+      <span style="opacity: 0.6">↑ {{ fmtSpeed(conn.globalStat.uploadSpeed) }}</span>
     </div>
 
-    <div style="margin-top:auto;padding:8px 14px 0;font-size:11px;opacity:.5;word-break:break-all">
-      保存到：<br>{{ api?.dir ?? '…' }}
+    <div style="margin-top: auto; padding: 8px 14px 0; font-size: 11px; opacity: 0.5; word-break: break-all">
+      保存到：<br />{{ api?.dir ?? '…' }}
     </div>
   </nav>
 
@@ -145,14 +192,11 @@ function onCategorySubmit(name: string, dir: string) {
     placement="bottom-start"
     trigger="manual"
     :show="catCtx.show"
-    :x="catCtx.x" :y="catCtx.y"
+    :x="catCtx.x"
+    :y="catCtx.y"
     :options="catMenuOptions()"
     @select="catMenuPick"
     @clickoutside="catCtx.show = false"
   />
-  <CategoryModal
-    v-model:show="catModalShow"
-    :category="editingCategory"
-    @submit="onCategorySubmit"
-  />
+  <CategoryModal v-model:show="catModalShow" :category="editingCategory" @submit="onCategorySubmit" />
 </template>
