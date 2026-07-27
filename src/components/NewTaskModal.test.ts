@@ -251,4 +251,17 @@ describe('NewTaskModal', () => {
     expect(mockAddTorrent).toHaveBeenCalledTimes(2)
     expect(mockAddUri).not.toHaveBeenCalled()
   })
+
+  it('files take priority over URLs in textarea on submit', async () => {
+    vi.mocked(open).mockResolvedValue(['D:/test.torrent'])
+    vi.mocked(invoke).mockResolvedValue('base64data')
+    mountModal()
+    await new DOMWrapper(el('textarea')).setValue('http://example.com/file.zip')
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    expect(mockAddTorrent).toHaveBeenCalledTimes(1)
+    expect(mockAddUri).not.toHaveBeenCalled()
+  })
 })
