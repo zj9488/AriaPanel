@@ -119,13 +119,21 @@ pub fn run() {
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
                 let st = match handle.try_state::<AppState>() { Some(s) => s, None => return };
-                let (ok, _stderr) = {
+                let (ok, stderr) = {
                     let mut sup = std::mem::replace(&mut *st.supervisor.lock().unwrap(), aria2::Supervisor::new());
                     let result = sup.start(&binary, &cfg, &settings).await;
                     let _ = std::mem::replace(&mut *st.supervisor.lock().unwrap(), sup);
                     result
                 };
                 if ok {
+                    if let Some(stderr) = stderr {
+                        let logs = st.logs.clone();
+                        let is = st.intentional_stop.clone();
+                        let h = handle.clone();
+                        aria2::spawn_stderr_reader(stderr, logs, is, move || {
+                            commands::start_crash_recovery(h);
+                        });
+                    }
                     if let Ok(mut g) = st.endpoint.lock() {
                         *g = Some(RpcEndpoint { url: rpc_http_url(port), secret: secret.clone(), dir: cfg.dir.display().to_string() });
                     }
@@ -152,6 +160,7 @@ pub fn run() {
     app.run(|app_handle, event| {
         if let tauri::RunEvent::ExitRequested { .. } = event {
             if let Some(st) = app_handle.try_state::<AppState>() {
+                st.intentional_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 let port = st.port.lock().ok().and_then(|g| *g);
                 let secret = st.secret.lock().ok().and_then(|g| g.clone());
                 if let (Some(port), Some(secret)) = (port, secret) {

@@ -79,7 +79,9 @@ pub async fn save_settings(
         (p, s)
     };
 
-    let (ok, _stderr) = {
+    state.intentional_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+
+    let (ok, stderr) = {
         let mut sup = std::mem::replace(&mut *state.supervisor.lock().unwrap(), crate::aria2::Supervisor::new());
         let result = if let (Some(op), Some(os)) = (old_port, old_secret.as_ref()) {
             sup.restart(&binary, op, os, &cfg, &settings).await
@@ -90,7 +92,17 @@ pub async fn save_settings(
         result
     };
 
+    state.intentional_stop.store(false, std::sync::atomic::Ordering::Relaxed);
+
     if ok {
+        if let Some(stderr) = stderr {
+            let logs = state.logs.clone();
+            let is = state.intentional_stop.clone();
+            let h = app.clone();
+            crate::aria2::spawn_stderr_reader(stderr, logs, is, move || {
+                start_crash_recovery(h);
+            });
+        }
         *state.port.lock().unwrap() = Some(new_port);
         *state.secret.lock().unwrap() = Some(new_secret.clone());
         let ep = RpcEndpoint {
@@ -133,4 +145,61 @@ pub fn open_folder(path: String) {
                 .spawn();
         }
     }
+}
+
+pub fn start_crash_recovery(handle: tauri::AppHandle) {
+    let _ = handle.emit("aria2://crashed", ());
+    tauri::async_runtime::spawn(async move {
+        let st = match handle.try_state::<AppState>() {
+            Some(s) => s,
+            None => return,
+        };
+        let binary = match crate::aria2::binary_path(&handle) {
+            Ok(p) => p,
+            Err(_) => {
+                let _ = handle.emit("aria2://failed", ());
+                return;
+            }
+        };
+        let data_dir = match handle.path().app_data_dir() {
+            Ok(d) => d,
+            Err(_) => {
+                let _ = handle.emit("aria2://failed", ());
+                return;
+            }
+        };
+        let session = data_dir.join("aria2.session.gz");
+        let settings_path = crate::settings::settings_path(&data_dir);
+        let settings = crate::settings::load_settings(&settings_path);
+        let dir = if settings.dir.is_empty() {
+            data_dir.join("downloads")
+        } else {
+            std::path::PathBuf::from(&settings.dir)
+        };
+        let cfg = crate::aria2::new_config(dir, session, &settings);
+
+        let (ok, stderr) = {
+            let mut sup = std::mem::replace(
+                &mut *st.supervisor.lock().unwrap(),
+                crate::aria2::Supervisor::new(),
+            );
+            let result = sup.ensure_alive(&binary, &cfg, &settings).await;
+            let _ = std::mem::replace(&mut *st.supervisor.lock().unwrap(), sup);
+            result
+        };
+
+        if ok {
+            if let Some(stderr) = stderr {
+                let logs = st.logs.clone();
+                let is = st.intentional_stop.clone();
+                let h = handle.clone();
+                crate::aria2::spawn_stderr_reader(stderr, logs, is, move || {
+                    start_crash_recovery(h);
+                });
+            }
+            let _ = handle.emit("aria2://restarted", ());
+        } else {
+            let _ = handle.emit("aria2://failed", ());
+        }
+    });
 }

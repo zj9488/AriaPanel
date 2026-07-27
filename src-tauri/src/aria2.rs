@@ -166,6 +166,27 @@ impl Supervisor {
     }
 }
 
+pub fn spawn_stderr_reader(
+    stderr: std::process::ChildStderr,
+    buffer: std::sync::Arc<crate::log_buffer::LogBuffer>,
+    intentional_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    on_eof: impl FnOnce() + Send + 'static,
+) {
+    std::thread::spawn(move || {
+        use std::io::BufRead;
+        let reader = std::io::BufReader::new(stderr);
+        for line in reader.lines() {
+            match line {
+                Ok(l) => buffer.push(l),
+                Err(_) => break,
+            }
+        }
+        if !intentional_stop.load(std::sync::atomic::Ordering::Relaxed) {
+            on_eof();
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
