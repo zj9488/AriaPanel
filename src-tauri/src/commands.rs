@@ -148,6 +148,17 @@ pub fn open_folder(path: String) {
     }
 }
 
+pub fn encode_file_base64(path: &str) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    use base64::Engine;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
+#[tauri::command]
+pub fn read_torrent_base64(path: String) -> Result<String, String> {
+    encode_file_base64(&path)
+}
+
 pub fn start_crash_recovery(handle: tauri::AppHandle) {
     let _ = handle.emit("aria2://crashed", ());
     tauri::async_runtime::spawn(async move {
@@ -267,5 +278,30 @@ pub async fn restart_aria2(state: State<'_, AppState>, app: tauri::AppHandle) ->
     } else {
         let _ = app.emit("aria2://failed", ());
         Err("aria2 restart failed".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_file_base64_reads_file() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("ap_test.torrent");
+        std::fs::write(&path, b"d6:lengthi100e4:name8:testfile12:piece lengthi16384e6:pieces20:").unwrap();
+        let result = encode_file_base64(path.to_str().unwrap());
+        assert!(result.is_ok());
+        let b64 = result.unwrap();
+        use base64::Engine;
+        let decoded = base64::engine::general_purpose::STANDARD.decode(&b64).unwrap();
+        assert_eq!(decoded, b"d6:lengthi100e4:name8:testfile12:piece lengthi16384e6:pieces20:");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn encode_file_base64_missing_file_returns_err() {
+        let result = encode_file_base64("/nonexistent/path/file.torrent");
+        assert!(result.is_err());
     }
 }
