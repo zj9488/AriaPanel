@@ -12,13 +12,17 @@ pub struct Aria2Config {
     pub dht_file_path: PathBuf,
 }
 
-pub fn new_config(dir: PathBuf, session: PathBuf, dht_file_path: PathBuf, settings: &Settings) -> Aria2Config {
+pub fn new_config(data_dir: &Path, settings: &Settings) -> Aria2Config {
     Aria2Config {
         port: settings.port.unwrap_or_else(pick_free_port),
         secret: settings.secret.clone().unwrap_or_else(generate_secret),
-        dir,
-        session,
-        dht_file_path,
+        dir: if settings.dir.is_empty() {
+            data_dir.join("downloads")
+        } else {
+            PathBuf::from(&settings.dir)
+        },
+        session: data_dir.join("aria2.session.gz"),
+        dht_file_path: data_dir.join("dht.dat"),
     }
 }
 

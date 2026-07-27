@@ -66,10 +66,7 @@ pub async fn save_settings(
     }
 
     let binary = crate::aria2::binary_path(&app).map_err(|e| e.to_string())?;
-    let session = data_dir.join("aria2.session.gz");
-    let dir = if settings.dir.is_empty() { data_dir.join("downloads") } else { std::path::PathBuf::from(&settings.dir) };
-    let dht_file_path = data_dir.join("dht.dat");
-    let cfg = crate::aria2::new_config(dir, session, dht_file_path, &settings);
+    let cfg = crate::aria2::new_config(&data_dir, &settings);
     let new_port = cfg.port;
     let new_secret = cfg.secret.clone();
     let new_dir = cfg.dir.display().to_string();
@@ -180,16 +177,9 @@ pub fn start_crash_recovery(handle: tauri::AppHandle) {
                 return;
             }
         };
-        let session = data_dir.join("aria2.session.gz");
         let settings_path = crate::settings::settings_path(&data_dir);
         let settings = crate::settings::load_settings(&settings_path);
-        let dir = if settings.dir.is_empty() {
-            data_dir.join("downloads")
-        } else {
-            std::path::PathBuf::from(&settings.dir)
-        };
-        let dht_file_path = data_dir.join("dht.dat");
-        let cfg = crate::aria2::new_config(dir, session, dht_file_path, &settings);
+        let cfg = crate::aria2::new_config(&data_dir, &settings);
 
         let (ok, stderr) = {
             let mut sup = std::mem::replace(
@@ -241,16 +231,9 @@ pub async fn restart_aria2(state: State<'_, AppState>, app: tauri::AppHandle) ->
 
     let binary = crate::aria2::binary_path(&app).map_err(|e| e.to_string())?;
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let session = data_dir.join("aria2.session.gz");
     let settings_path = crate::settings::settings_path(&data_dir);
     let settings = crate::settings::load_settings(&settings_path);
-    let dir = if settings.dir.is_empty() {
-        data_dir.join("downloads")
-    } else {
-        std::path::PathBuf::from(&settings.dir)
-    };
-    let dht_file_path = data_dir.join("dht.dat");
-    let cfg = crate::aria2::new_config(dir, session, dht_file_path, &settings);
+    let cfg = crate::aria2::new_config(&data_dir, &settings);
 
     let (ok, stderr) = {
         let mut sup = std::mem::replace(

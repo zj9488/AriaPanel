@@ -102,16 +102,13 @@ pub fn run() {
                 };
                 let data_dir = handle.path().app_data_dir().unwrap_or_default();
                 let _ = std::fs::create_dir_all(&data_dir);
-                let session = data_dir.join("aria2.session.gz");
-                if !session.exists() {
-                    let _ = std::fs::write(&session, b"");
-                }
                 let settings_path = settings::settings_path(&data_dir);
                 let mut settings = settings::load_settings(&settings_path);
-                let dir = if settings.dir.is_empty() { data_dir.join("downloads") } else { std::path::PathBuf::from(&settings.dir) };
-                let _ = std::fs::create_dir_all(&dir);
-                let dht_file_path = data_dir.join("dht.dat");
-                let cfg = new_config(dir, session, dht_file_path, &settings);
+                let cfg = new_config(&data_dir, &settings);
+                if !cfg.session.exists() {
+                    let _ = std::fs::write(&cfg.session, b"");
+                }
+                let _ = std::fs::create_dir_all(&cfg.dir);
                 if settings.port.is_none() || settings.secret.is_none() {
                     settings.port = Some(cfg.port);
                     settings.secret = Some(cfg.secret.clone());
