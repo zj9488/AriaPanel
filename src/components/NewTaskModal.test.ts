@@ -13,8 +13,9 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 const mockAddUri = vi.fn().mockResolvedValue('gid123')
+const mockAddTorrent = vi.fn().mockResolvedValue('gid-torrent')
 const mockApi = {
-  client: { addUri: mockAddUri },
+  client: { addUri: mockAddUri, addTorrent: mockAddTorrent },
   refresh: vi.fn(),
   dir: 'D:/downloads',
 }
@@ -54,6 +55,7 @@ describe('NewTaskModal', () => {
     setActivePinia(createPinia())
     document.body.innerHTML = ''
     mockAddUri.mockClear()
+    mockAddTorrent.mockClear()
   })
 
   it('renders textarea and submit button', () => {
@@ -223,5 +225,30 @@ describe('NewTaskModal', () => {
     await w.setProps({ show: true })
     await flushPromises()
     expect(document.body.textContent).not.toContain('test.torrent')
+  })
+
+  it('submit with torrent files calls addTorrent not addUri', async () => {
+    vi.mocked(open).mockResolvedValue(['D:/test.torrent'])
+    vi.mocked(invoke).mockResolvedValue('base64data')
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    expect(mockAddTorrent).toHaveBeenCalledTimes(1)
+    expect(mockAddTorrent).toHaveBeenCalledWith('base64data', [], expect.objectContaining({ dir: 'D:/downloads' }))
+    expect(mockAddUri).not.toHaveBeenCalled()
+  })
+
+  it('submit multiple torrent files calls addTorrent per file', async () => {
+    vi.mocked(open).mockResolvedValue(['D:/a.torrent', 'D:/b.torrent'])
+    vi.mocked(invoke).mockResolvedValue('base64data')
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    expect(mockAddTorrent).toHaveBeenCalledTimes(2)
+    expect(mockAddUri).not.toHaveBeenCalled()
   })
 })

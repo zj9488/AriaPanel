@@ -91,7 +91,7 @@ export class Aria2Client {
     return this.call<string>('aria2.addUri', params)
   }
 
-  addTorrent(torrentBase64: string, uris: string[] = [], options: Record<string, string> = {}) {
+  addTorrent(torrentBase64: string, uris: string[] = [], options: Record<string, unknown> = {}) {
     return this.call<string>('aria2.addTorrent', [torrentBase64, uris, options])
   }
 }

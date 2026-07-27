@@ -130,6 +130,33 @@ function removeTorrent(index: number) {
 }
 
 async function submit() {
+  if (torrentFiles.value.length > 0) {
+    const c = api?.value?.client
+    if (!c) return
+    submitting.value = true
+    const options = buildOptions()
+    let success = 0
+    const errors: string[] = []
+    for (const f of torrentFiles.value) {
+      try {
+        await c.addTorrent(f.base64, [], options)
+        success++
+      } catch (e) {
+        errors.push(`${f.name}: ${String(e)}`)
+      }
+    }
+    submitting.value = false
+    if (errors.length > 0) {
+      message.error(`${success} 成功，${errors.length} 失败：${errors.join('; ')}`)
+    } else {
+      message.success(`已添加 ${success} 个任务`)
+    }
+    if (success > 0) {
+      emit('update:show', false)
+      emit('submitted')
+    }
+    return
+  }
   const list = urlList.value
   if (list.length === 0) {
     message.warning('请输入至少一个链接')
