@@ -153,6 +153,7 @@ pub fn run() {
             commands::open_folder,
             commands::get_aria2_logs,
             commands::get_restarts_count,
+            commands::restart_aria2,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

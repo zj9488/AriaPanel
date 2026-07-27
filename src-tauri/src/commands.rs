@@ -203,3 +203,66 @@ pub fn start_crash_recovery(handle: tauri::AppHandle) {
         }
     });
 }
+
+#[tauri::command]
+pub async fn restart_aria2(state: State<'_, AppState>, app: tauri::AppHandle) -> Result<(), String> {
+    state.intentional_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+
+    let (old_port, old_secret) = {
+        let p = state.port.lock().unwrap().clone();
+        let s = state.secret.lock().unwrap().clone();
+        (p, s)
+    };
+
+    {
+        let mut sup = std::mem::replace(
+            &mut *state.supervisor.lock().unwrap(),
+            crate::aria2::Supervisor::new(),
+        );
+        if let (Some(p), Some(s)) = (old_port, old_secret.as_ref()) {
+            sup.shutdown(p, s).await;
+        }
+        sup.restarts = 0;
+        let _ = std::mem::replace(&mut *state.supervisor.lock().unwrap(), sup);
+    }
+
+    let binary = crate::aria2::binary_path(&app).map_err(|e| e.to_string())?;
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let session = data_dir.join("aria2.session.gz");
+    let settings_path = crate::settings::settings_path(&data_dir);
+    let settings = crate::settings::load_settings(&settings_path);
+    let dir = if settings.dir.is_empty() {
+        data_dir.join("downloads")
+    } else {
+        std::path::PathBuf::from(&settings.dir)
+    };
+    let cfg = crate::aria2::new_config(dir, session, &settings);
+
+    let (ok, stderr) = {
+        let mut sup = std::mem::replace(
+            &mut *state.supervisor.lock().unwrap(),
+            crate::aria2::Supervisor::new(),
+        );
+        let result = sup.start(&binary, &cfg, &settings).await;
+        let _ = std::mem::replace(&mut *state.supervisor.lock().unwrap(), sup);
+        result
+    };
+
+    state.intentional_stop.store(false, std::sync::atomic::Ordering::Relaxed);
+
+    if ok {
+        if let Some(stderr) = stderr {
+            let logs = state.logs.clone();
+            let is = state.intentional_stop.clone();
+            let h = app.clone();
+            crate::aria2::spawn_stderr_reader(stderr, logs, is, move || {
+                start_crash_recovery(h);
+            });
+        }
+        let _ = app.emit("aria2://restarted", ());
+        Ok(())
+    } else {
+        let _ = app.emit("aria2://failed", ());
+        Err("aria2 restart failed".into())
+    }
+}
