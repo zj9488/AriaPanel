@@ -90,4 +90,8 @@ export class Aria2Client {
     const params = options ? [uris, options] : [uris]
     return this.call<string>('aria2.addUri', params)
   }
+
+  addTorrent(torrentBase64: string, uris: string[] = [], options: Record<string, string> = {}) {
+    return this.call<string>('aria2.addTorrent', [torrentBase64, uris, options])
+  }
 }

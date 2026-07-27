@@ -24,7 +24,16 @@ export interface Aria2Task {
     selected: string
     uris: Array<{ uri: string; status: string }>
   }>
-  bittorrent?: { info: { name?: string } }
+  bittorrent?: {
+    info: { name?: string }
+    mode?: 'single' | 'multi'
+    announceList?: string[][]
+    comment?: string
+    creationDate?: number
+  }
+  infoHash?: string
+  numSeeders?: string
+  seeder?: string
   errorCode?: string
   errorMessage?: string
 }

@@ -96,4 +96,13 @@ describe('Aria2Client', () => {
     expect(body.method).toBe('aria2.changeGlobalOption')
     expect(body.params).toEqual(['token:S', { 'max-concurrent-downloads': '3' }])
   })
+
+  it('addTorrent sends base64 and options', async () => {
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: 'gid-new' })
+    const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
+    await c.addTorrent('dGVzdA==', [], { dir: '/dl' })
+    const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.method).toBe('aria2.addTorrent')
+    expect(body.params).toEqual(['token:S', 'dGVzdA==', [], { dir: '/dl' }])
+  })
 })
