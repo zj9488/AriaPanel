@@ -110,18 +110,20 @@ impl Supervisor {
     pub fn can_restart(&self) -> bool { self.restarts < self.max_restarts }
 
     /// spawn 子进程并健康检查；失败返回 false。
-    pub async fn start(&mut self, binary: &Path, cfg: &Aria2Config, settings: &Settings) -> bool {
+    pub async fn start(&mut self, binary: &Path, cfg: &Aria2Config, settings: &Settings) -> (bool, Option<std::process::ChildStderr>) {
         match spawn(binary, cfg, settings) {
-            Ok(c) => {
+            Ok(mut c) => {
+                let stderr = c.stderr.take();
                 self.child = Some(c);
-                health_check(cfg.port, &cfg.secret).await
+                let ok = health_check(cfg.port, &cfg.secret).await;
+                (ok, if ok { stderr } else { None })
             }
-            Err(_) => false,
+            Err(_) => (false, None),
         }
     }
 
     /// 若子进程已退出且未超上限，则重启。
-    pub async fn ensure_alive(&mut self, binary: &Path, cfg: &Aria2Config, settings: &Settings) -> bool {
+    pub async fn ensure_alive(&mut self, binary: &Path, cfg: &Aria2Config, settings: &Settings) -> (bool, Option<std::process::ChildStderr>) {
         let dead = match self.child.as_mut() {
             None => true,
             Some(c) => match c.try_wait() {
@@ -130,14 +132,14 @@ impl Supervisor {
             },
         };
         if dead {
-            if !self.can_restart() { return false; }
+            if !self.can_restart() { return (false, None); }
             self.restarts += 1;
             return self.start(binary, cfg, settings).await;
         }
-        true
+        (true, None)
     }
 
-    pub async fn restart(&mut self, binary: &Path, old_port: u16, old_secret: &str, cfg: &Aria2Config, settings: &Settings) -> bool {
+    pub async fn restart(&mut self, binary: &Path, old_port: u16, old_secret: &str, cfg: &Aria2Config, settings: &Settings) -> (bool, Option<std::process::ChildStderr>) {
         self.shutdown(old_port, old_secret).await;
         self.restarts = 0;
         self.start(binary, cfg, settings).await

@@ -24,11 +24,23 @@ pub struct AppState {
     pub secret: Mutex<Option<String>>,
     pub supervisor: Mutex<crate::aria2::Supervisor>,
     pub allow_exit: AtomicBool,
+    pub logs: std::sync::Arc<crate::log_buffer::LogBuffer>,
+    pub intentional_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 #[tauri::command]
 pub fn get_rpc_endpoint(state: State<'_, AppState>) -> Option<RpcEndpoint> {
     state.endpoint.lock().ok().and_then(|g| g.clone())
+}
+
+#[tauri::command]
+pub fn get_aria2_logs(state: State<'_, AppState>) -> Vec<String> {
+    state.logs.snapshot()
+}
+
+#[tauri::command]
+pub fn get_restarts_count(state: State<'_, AppState>) -> u32 {
+    state.supervisor.lock().unwrap().restarts_count()
 }
 
 #[tauri::command]
@@ -67,7 +79,7 @@ pub async fn save_settings(
         (p, s)
     };
 
-    let ok = {
+    let (ok, _stderr) = {
         let mut sup = std::mem::replace(&mut *state.supervisor.lock().unwrap(), crate::aria2::Supervisor::new());
         let result = if let (Some(op), Some(os)) = (old_port, old_secret.as_ref()) {
             sup.restart(&binary, op, os, &cfg, &settings).await

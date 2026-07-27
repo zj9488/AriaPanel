@@ -44,6 +44,8 @@ pub fn run() {
             secret: Mutex::new(None),
             supervisor: Mutex::new(aria2::Supervisor::new()),
             allow_exit: std::sync::atomic::AtomicBool::new(false),
+            logs: log_buffer::LogBuffer::new(200),
+            intentional_stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
         .setup(|app| {
             let show_i = MenuItem::with_id(app, "tray_show", "显示主窗口", true, None::<&str>)?;
@@ -117,7 +119,7 @@ pub fn run() {
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
                 let st = match handle.try_state::<AppState>() { Some(s) => s, None => return };
-                let ok = {
+                let (ok, _stderr) = {
                     let mut sup = std::mem::replace(&mut *st.supervisor.lock().unwrap(), aria2::Supervisor::new());
                     let result = sup.start(&binary, &cfg, &settings).await;
                     let _ = std::mem::replace(&mut *st.supervisor.lock().unwrap(), sup);
@@ -141,6 +143,8 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::open_folder,
+            commands::get_aria2_logs,
+            commands::get_restarts_count,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
