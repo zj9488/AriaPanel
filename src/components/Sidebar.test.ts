@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { NConfigProvider, NMessageProvider, NDialogProvider } from 'naive-ui'
 import Sidebar from './Sidebar.vue'
 import { useTaskStore } from '@/stores/task'
-import { useCategoryStore } from '@/stores/category'
+import { useCategoryStore, UNCATEGORIZED_ID } from '@/stores/category'
 import { useConnectionStore } from '@/stores/connection'
 import type { Aria2Task } from '@/lib/aria2/types'
 
@@ -81,5 +81,26 @@ describe('Sidebar', () => {
     ts.apply([mkTask('g1', 'D:/Music'), mkTask('g2', 'D:/dl')], [], [])
     const w = mountSidebar()
     expect(w.text()).toContain('1')
+  })
+
+  it('renders uncategorized item', () => {
+    const w = mountSidebar()
+    expect(w.text()).toContain('未分类')
+  })
+
+  it('clicking uncategorized sets categoryFilter', async () => {
+    const ts = useTaskStore()
+    const w = mountSidebar()
+    await w.find('[data-uncategorized]').trigger('click')
+    expect(ts.categoryFilter).toBe(UNCATEGORIZED_ID)
+  })
+
+  it('uncategorized count reflects unmatched tasks', () => {
+    const ts = useTaskStore()
+    const cs = useCategoryStore()
+    cs.updateCategory('music', '音乐', 'D:/Music')
+    ts.apply([mkTask('g1', 'D:/Music'), mkTask('g2', 'D:/dl')], [], [])
+    const w = mountSidebar()
+    expect(w.find('[data-uncategorized]').text()).toContain('1')
   })
 })

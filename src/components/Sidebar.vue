@@ -2,7 +2,7 @@
 import { computed, ref, inject, type Ref } from 'vue'
 import { NDropdown, useDialog, useMessage } from 'naive-ui'
 import { useTaskStore, type TaskFilter } from '@/stores/task'
-import { useCategoryStore, type Category } from '@/stores/category'
+import { useCategoryStore, type Category, UNCATEGORIZED_ID } from '@/stores/category'
 import { useConnectionStore } from '@/stores/connection'
 import type { Aria2Api } from '@/composables/useAria2'
 import { fmtSpeed } from '@/lib/format'
@@ -41,6 +41,19 @@ function catCount(catId: string): number {
     if (t && cats.matchCategory(t, catId)) count++
   }
   return count
+}
+
+function uncategorizedCount(): number {
+  let count = 0
+  for (const gid of tasks.order) {
+    const t = tasks.tasks.get(gid)
+    if (t && cats.isUncategorized(t)) count++
+  }
+  return count
+}
+
+function selectUncategorized() {
+  tasks.categoryFilter = tasks.categoryFilter === UNCATEGORIZED_ID ? null : UNCATEGORIZED_ID
 }
 
 function selectCategory(id: string) {
@@ -159,6 +172,25 @@ function onCategorySubmit(name: string, dir: string) {
     >
       <span>{{ iconFor(cat) }} {{ cat.name }}</span>
       <span style="opacity: 0.6; font-size: 12px">{{ catCount(cat.id) }}</span>
+    </button>
+    <button
+      data-uncategorized
+      :style="{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        width: '100%',
+        padding: '4px 14px',
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
+        fontWeight: tasks.categoryFilter === UNCATEGORIZED_ID ? 700 : 400,
+        color: tasks.categoryFilter === UNCATEGORIZED_ID ? 'var(--n-primary-color,#18a058)' : 'inherit',
+      }"
+      @click="selectUncategorized()"
+    >
+      <span>📂 未分类</span>
+      <span style="opacity: 0.6; font-size: 12px">{{ uncategorizedCount() }}</span>
     </button>
     <button
       style="
