@@ -2,6 +2,12 @@ use crate::secret::{generate_secret, pick_free_port};
 use crate::settings::Settings;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 use tauri::Manager;
 
 pub struct Aria2Config {
@@ -84,12 +90,14 @@ pub fn binary_path(app: &tauri::AppHandle) -> tauri::Result<PathBuf> {
 }
 
 pub fn spawn(binary: &Path, cfg: &Aria2Config, settings: &Settings) -> std::io::Result<Child> {
-    Command::new(binary)
-        .args(build_args(cfg))
+    let mut cmd = Command::new(binary);
+    cmd.args(build_args(cfg))
         .args(build_global_args(settings))
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.spawn()
 }
 
 /// 轮询 aria2.getVersion（带 token），最多约 5 秒。
