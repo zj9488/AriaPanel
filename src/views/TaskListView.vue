@@ -56,8 +56,8 @@ const displayTasks = computed(() => {
   })
 })
 
-const { retry, operate, submitRetry, onAdd } = useTaskOperations(api, tasks, message)
-const { detail } = useDetailPoller(api, tasks)
+const { retry, operate, submitRetry, onAdd, changeTaskOption } = useTaskOperations(api, tasks, message)
+const { detail, taskOptions } = useDetailPoller(api, tasks)
 
 const ctx = ref({
   show: false,
@@ -141,7 +141,14 @@ function openContextMenu(gid: string, e: MouseEvent) {
       :original-split="retry.split"
       @submit="submitRetry"
     />
-    <TaskDetailDrawer :show="detailShow" :detail="detail" :operate="operate" @update:show="onDrawerClose" />
+    <TaskDetailDrawer
+      :show="detailShow"
+      :detail="detail"
+      :task-options="taskOptions"
+      :operate="operate"
+      :change-option="changeTaskOption"
+      @update:show="onDrawerClose"
+    />
     <SettingsModal v-model:show="settingsShow" @saved="api?.refresh()" />
     <NewTaskModal v-model:show="newTaskShow" :default-dir="api?.dir ?? ''" @submitted="api?.refresh()" />
     <DiagnosticsModal />
