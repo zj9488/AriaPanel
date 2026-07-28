@@ -3,6 +3,7 @@ import { NButton, NDrawer, NDrawerContent, NProgress, NTag } from 'naive-ui'
 import { computed } from 'vue'
 import type { Aria2TaskDetail } from '@/lib/aria2/types'
 import type { TaskOp } from '@/lib/task-op'
+import BtPeerSection from './BtPeerSection.vue'
 import { fmtSpeed, fmtBytes, fmtProgress, taskName } from '@/lib/format'
 
 const props = defineProps<{
@@ -62,6 +63,8 @@ function uriStatusColor(s: string): 'success' | 'warning' | 'error' | 'default' 
             分块大小：{{ fmtBytes(t.pieceLength) }}
           </div>
         </section>
+
+        <BtPeerSection v-if="t?.bittorrent" :detail="t" />
 
         <section>
           <h4 style="margin: 0 0 4px; font-size: 13px; opacity: 0.7">文件列表</h4>
