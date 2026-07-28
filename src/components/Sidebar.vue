@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, inject, type Ref } from 'vue'
-import { NDropdown, useDialog, useMessage } from 'naive-ui'
+import { NDropdown, useDialog } from 'naive-ui'
 import { useTaskStore, type TaskFilter } from '@/stores/task'
 import { useCategoryStore, type Category, UNCATEGORIZED_ID } from '@/stores/category'
 import { useConnectionStore } from '@/stores/connection'
@@ -13,7 +13,6 @@ const cats = useCategoryStore()
 const conn = useConnectionStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const dialog = useDialog()
-const message = useMessage()
 
 const statusItems = computed(() => [
   { key: 'all' as TaskFilter, label: '全部', count: tasks.active.length + tasks.waiting.length + tasks.stopped.length },
@@ -93,8 +92,7 @@ function catMenuPick(key: string) {
       positiveText: '删除',
       negativeText: '取消',
       onPositiveClick: () => {
-        const ok = cats.removeCategory(id)
-        if (!ok) message.warning('至少保留一个默认分类')
+        cats.removeCategory(id)
         if (tasks.categoryFilter === id) tasks.categoryFilter = null
       },
     })
