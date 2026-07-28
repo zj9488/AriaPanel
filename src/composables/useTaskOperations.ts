@@ -114,5 +114,17 @@ export function useTaskOperations(
     }
   }
 
-  return { retry, operate, submitRetry, onAdd }
+  async function changeTaskOption(gid: string, options: Record<string, string>) {
+    const c = api.value?.client
+    if (!c) return
+    try {
+      await c.changeOption(gid, options)
+      refresh()
+    } catch (e) {
+      message.error(`操作失败：${String(e)}`)
+      refresh()
+    }
+  }
+
+  return { retry, operate, submitRetry, onAdd, changeTaskOption }
 }
