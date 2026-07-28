@@ -156,6 +156,67 @@ pub fn read_torrent_base64(path: String) -> Result<String, String> {
     encode_file_base64(&path)
 }
 
+#[derive(serde::Deserialize)]
+struct TorrentInfo {
+    name: String,
+    #[serde(default)]
+    files: Option<Vec<RawTorrentFile>>,
+    #[serde(default)]
+    length: Option<u64>,
+}
+
+#[derive(serde::Deserialize)]
+struct RawTorrentFile {
+    path: Vec<String>,
+    length: u64,
+}
+
+#[derive(serde::Deserialize)]
+struct Torrent {
+    info: TorrentInfo,
+}
+
+#[derive(serde::Serialize)]
+pub struct ParsedTorrentFile {
+    pub path: String,
+    pub length: u64,
+}
+
+#[derive(serde::Serialize)]
+pub struct ParsedTorrent {
+    pub name: String,
+    pub files: Vec<ParsedTorrentFile>,
+}
+
+#[tauri::command]
+pub fn parse_torrent_files(b64: String) -> Result<ParsedTorrent, String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&b64)
+        .map_err(|e| e.to_string())?;
+    let torrent: Torrent = serde_bencode::from_bytes(&bytes).map_err(|e| format!("bencode: {e}"))?;
+    let files = if let Some(raw_files) = torrent.info.files {
+        raw_files
+            .into_iter()
+            .map(|f| ParsedTorrentFile {
+                path: f.path.join("/"),
+                length: f.length,
+            })
+            .collect()
+    } else if let Some(length) = torrent.info.length {
+        vec![ParsedTorrentFile {
+            path: torrent.info.name.clone(),
+            length,
+        }]
+    } else {
+        return Err("missing file info".into());
+    };
+    Ok(ParsedTorrent {
+        name: torrent.info.name,
+        files,
+    })
+}
+
 pub fn start_crash_recovery(handle: tauri::AppHandle) {
     let _ = handle.emit("aria2://crashed", ());
     tauri::async_runtime::spawn(async move {
@@ -285,6 +346,50 @@ mod tests {
     #[test]
     fn encode_file_base64_missing_file_returns_err() {
         let result = encode_file_base64("/nonexistent/path/file.torrent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_torrent_files_single_file() {
+        let bencode = b"d4:infod6:lengthi100e4:name8:testfile12:piece lengthi16384e6:pieces20:AAAAAAAAAAAAAAAAAAAAee";
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(bencode);
+        let result = parse_torrent_files(b64);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.name, "testfile");
+        assert_eq!(parsed.files.len(), 1);
+        assert_eq!(parsed.files[0].path, "testfile");
+        assert_eq!(parsed.files[0].length, 100);
+    }
+
+    #[test]
+    fn parse_torrent_files_multi_file() {
+        let bencode = b"d4:infod5:filesld6:lengthi100e4:pathl5:file1eed6:lengthi200e4:pathl3:sub5:file2eee4:name4:test12:piece lengthi16384e6:pieces20:AAAAAAAAAAAAAAAAAAAAee";
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(bencode);
+        let result = parse_torrent_files(b64);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.name, "test");
+        assert_eq!(parsed.files.len(), 2);
+        assert_eq!(parsed.files[0].path, "file1");
+        assert_eq!(parsed.files[0].length, 100);
+        assert_eq!(parsed.files[1].path, "sub/file2");
+        assert_eq!(parsed.files[1].length, 200);
+    }
+
+    #[test]
+    fn parse_torrent_files_invalid_b64() {
+        let result = parse_torrent_files("!!!not-base64!!!".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_torrent_files_invalid_bencode() {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(b"not valid bencode");
+        let result = parse_torrent_files(b64);
         assert!(result.is_err());
     }
 }
