@@ -38,6 +38,18 @@ export interface Aria2Task {
   errorMessage?: string
 }
 
+export interface Peer {
+  peerId: string
+  ip: string
+  port: string
+  bitfield: string
+  amChoking: string
+  peerChoking: string
+  downloadSpeed: string
+  uploadSpeed: string
+  seeder: string
+}
+
 export interface GlobalStat {
   downloadSpeed: string
   uploadSpeed: string
@@ -51,4 +63,5 @@ export interface Aria2TaskDetail extends Aria2Task {
   numPieces: string
   bitfield: string
   connections: string
+  peers?: Peer[]
 }
