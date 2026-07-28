@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTaskStore } from './task'
-import { useCategoryStore } from './category'
+import { useCategoryStore, UNCATEGORIZED_ID } from './category'
 import type { Aria2Task } from '@/lib/aria2/types'
 
 function mkTask(gid: string, status: Aria2Task['status'], dir: string): Aria2Task {
@@ -91,6 +91,15 @@ describe('useTaskStore filter pipeline', () => {
     expect(ts.visibleTasks).toHaveLength(1)
     ts.categoryFilter = null
     expect(ts.visibleTasks).toHaveLength(2)
+  })
+
+  it('uncategorized filter', () => {
+    const cs = useCategoryStore()
+    cs.updateCategory('music', '音乐', 'D:/Music')
+    const ts = useTaskStore()
+    ts.apply([mkTask('g1', 'active', 'D:/Music'), mkTask('g2', 'active', 'D:/dl')], [], [])
+    ts.categoryFilter = UNCATEGORIZED_ID
+    expect(ts.visibleTasks.map((t) => t.gid)).toEqual(['g2'])
   })
 })
 

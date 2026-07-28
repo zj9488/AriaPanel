@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowReactive, watch } from 'vue'
 import type { Aria2Task } from '@/lib/aria2/types'
 import { taskName } from '@/lib/format'
-import { useCategoryStore } from './category'
+import { useCategoryStore, UNCATEGORIZED_ID } from './category'
 
 export type TaskFilter = 'all' | 'active' | 'waiting' | 'stopped'
 
@@ -44,7 +44,11 @@ export const useTaskStore = defineStore('task', () => {
     if (categoryFilter.value) {
       const catStore = useCategoryStore()
       const cid = categoryFilter.value
-      list = list.filter((t) => catStore.matchCategory(t, cid))
+      if (cid === UNCATEGORIZED_ID) {
+        list = list.filter((t) => catStore.isUncategorized(t))
+      } else {
+        list = list.filter((t) => catStore.matchCategory(t, cid))
+      }
     }
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase()
