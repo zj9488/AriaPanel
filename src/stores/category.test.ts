@@ -54,16 +54,14 @@ describe('useCategoryStore', () => {
     expect(s.getCategory('doc')).toBeUndefined()
   })
 
-  it('removeCategory refuses to remove last empty-dir category', () => {
+  it('removeCategory allows deleting all categories', () => {
     const s = useCategoryStore()
     s.removeCategory('music')
     s.removeCategory('video')
     s.removeCategory('image')
     s.removeCategory('doc')
-    expect(s.categories).toHaveLength(1)
-    const result = s.removeCategory('downloads')
-    expect(result).toBe(false)
-    expect(s.categories).toHaveLength(1)
+    expect(s.removeCategory('downloads')).toBe(true)
+    expect(s.categories).toHaveLength(0)
   })
 
   it('matchCategory: non-empty dir exact match', () => {
@@ -73,11 +71,23 @@ describe('useCategoryStore', () => {
     expect(s.matchCategory(mkTask('g2', 'D:/Other'), 'music')).toBe(false)
   })
 
-  it('matchCategory: empty-dir category catches unmatched tasks', () => {
+  it('matchCategory: empty-dir category matches nothing', () => {
     const s = useCategoryStore()
     s.updateCategory('music', '音乐', 'D:/Music')
     expect(s.matchCategory(mkTask('g1', 'D:/Music'), 'downloads')).toBe(false)
-    expect(s.matchCategory(mkTask('g2', 'D:/Other'), 'downloads')).toBe(true)
+    expect(s.matchCategory(mkTask('g2', 'D:/Other'), 'downloads')).toBe(false)
+  })
+
+  it('isUncategorized: tasks not matching any configured category', () => {
+    const s = useCategoryStore()
+    s.updateCategory('music', '音乐', 'D:/Music')
+    expect(s.isUncategorized(mkTask('g1', 'D:/Music'))).toBe(false)
+    expect(s.isUncategorized(mkTask('g2', 'D:/Other'))).toBe(true)
+  })
+
+  it('isUncategorized: all categories unconfigured means all tasks uncategorized', () => {
+    const s = useCategoryStore()
+    expect(s.isUncategorized(mkTask('g1', 'D:/dl'))).toBe(true)
   })
 
   it('restores from localStorage', () => {

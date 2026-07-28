@@ -9,6 +9,8 @@ export interface Category {
 
 const STORAGE_KEY = 'ap:categories'
 
+export const UNCATEGORIZED_ID = '__uncategorized__'
+
 const DEFAULT_CATEGORIES: Category[] = [
   { id: 'downloads', name: '下载', dir: '' },
   { id: 'music', name: '音乐', dir: '' },
@@ -50,10 +52,6 @@ export const useCategoryStore = defineStore('category', () => {
   function removeCategory(id: string): boolean {
     const cat = categories.value.find((c) => c.id === id)
     if (!cat) return false
-    if (!cat.dir) {
-      const emptyDirCount = categories.value.filter((c) => !c.dir).length
-      if (emptyDirCount <= 1) return false
-    }
     categories.value = categories.value.filter((c) => c.id !== id)
     return true
   }
@@ -64,11 +62,13 @@ export const useCategoryStore = defineStore('category', () => {
 
   function matchCategory(task: { dir: string }, categoryId: string): boolean {
     const cat = categories.value.find((c) => c.id === categoryId)
-    if (!cat) return false
-    if (cat.dir) return task.dir === cat.dir
-    const nonEmpty = categories.value.filter((c) => c.dir)
-    return !nonEmpty.some((c) => c.dir === task.dir)
+    if (!cat || !cat.dir) return false
+    return task.dir === cat.dir
   }
 
-  return { categories, addCategory, updateCategory, removeCategory, getCategory, matchCategory }
+  function isUncategorized(task: { dir: string }): boolean {
+    return !categories.value.some((c) => c.dir && c.dir === task.dir)
+  }
+
+  return { categories, addCategory, updateCategory, removeCategory, getCategory, matchCategory, isUncategorized }
 })
