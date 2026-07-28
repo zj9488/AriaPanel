@@ -264,4 +264,150 @@ describe('NewTaskModal', () => {
     expect(mockAddTorrent).toHaveBeenCalledTimes(1)
     expect(mockAddUri).not.toHaveBeenCalled()
   })
+
+  it('shows file list for single multi-file torrent', async () => {
+    vi.mocked(open).mockResolvedValue('D:/test.torrent')
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('base64data')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [
+            { path: 'file1.bin', length: 100 },
+            { path: 'file2.bin', length: 200 },
+          ],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('文件列表')
+    expect(document.body.textContent).toContain('file1.bin')
+    expect(document.body.textContent).toContain('file2.bin')
+  })
+
+  it('hides file list for single-file torrent', async () => {
+    vi.mocked(open).mockResolvedValue('D:/test.torrent')
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('base64data')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [{ path: 'only.bin', length: 100 }],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).not.toContain('文件列表')
+  })
+
+  it('deselect all unchecks all file checkboxes', async () => {
+    vi.mocked(open).mockResolvedValue('D:/test.torrent')
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('base64data')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [
+            { path: 'file1.bin', length: 100 },
+            { path: 'file2.bin', length: 200 },
+          ],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="deselect-all-files"]')).trigger('click')
+    await flushPromises()
+    const checkboxes = document.body.querySelectorAll('[data-test="file-checkbox"]')
+    expect(checkboxes[0].className).not.toContain('checked')
+    expect(checkboxes[1].className).not.toContain('n-checkbox--checked')
+  })
+
+  it('select all re-checks all file checkboxes', async () => {
+    vi.mocked(open).mockResolvedValue('D:/test.torrent')
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('base64data')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [
+            { path: 'file1.bin', length: 100 },
+            { path: 'file2.bin', length: 200 },
+          ],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="deselect-all-files"]')).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="select-all-files"]')).trigger('click')
+    await flushPromises()
+    const checkboxes = document.body.querySelectorAll('[data-test="file-checkbox"]')
+    expect(checkboxes[0].className).toContain('n-checkbox--checked')
+    expect(checkboxes[1].className).toContain('n-checkbox--checked')
+  })
+
+  it('toggling individual checkbox updates selection', async () => {
+    vi.mocked(open).mockResolvedValue('D:/test.torrent')
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('base64data')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [
+            { path: 'file1.bin', length: 100 },
+            { path: 'file2.bin', length: 200 },
+          ],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    const checkboxes = document.body.querySelectorAll('[data-test="file-checkbox"]')
+    await new DOMWrapper(checkboxes[0] as HTMLElement).trigger('click')
+    await flushPromises()
+    const updated = document.body.querySelectorAll('[data-test="file-checkbox"]')
+    expect(updated[0].className).not.toContain('n-checkbox--checked')
+    expect(updated[1].className).toContain('n-checkbox--checked')
+  })
+
+  it('submit includes select-file with checked indices', async () => {
+    vi.mocked(open).mockResolvedValue('D:/test.torrent')
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('base64data')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [
+            { path: 'file1.bin', length: 100 },
+            { path: 'file2.bin', length: 200 },
+            { path: 'file3.bin', length: 300 },
+          ],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('button[data-test="pick-torrent"]')).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="deselect-all-files"]')).trigger('click')
+    await flushPromises()
+    const checkboxes = document.body.querySelectorAll('[data-test="file-checkbox"]')
+    await new DOMWrapper(checkboxes[2] as HTMLElement).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    expect(mockAddTorrent).toHaveBeenCalledWith(
+      'base64data',
+      [],
+      expect.objectContaining({ 'select-file': '3', dir: 'D:/downloads' }),
+    )
+  })
 })

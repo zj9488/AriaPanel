@@ -1,11 +1,35 @@
 <script setup lang="ts">
-import { NModal, NInput, NButton, NSelect, NInputNumber, NCollapse, NCollapseItem, NTag, useMessage } from 'naive-ui'
+import {
+  NModal,
+  NInput,
+  NButton,
+  NSelect,
+  NInputNumber,
+  NCheckbox,
+  NCollapse,
+  NCollapseItem,
+  NTag,
+  useMessage,
+} from 'naive-ui'
 import { ref, computed, watch, inject, type Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useDirBrowser } from '@/composables/useDirBrowser'
 import { useCategoryDir } from '@/composables/useCategoryDir'
 import type { Aria2Api } from '@/composables/useAria2'
+import { fmtBytes } from '@/lib/format'
+
+interface ParsedFile {
+  path: string
+  length: number
+  selected: boolean
+}
+
+interface TorrentEntry {
+  name: string
+  base64: string
+  parsedFiles?: ParsedFile[]
+}
 
 const props = defineProps<{ show: boolean; defaultDir: string }>()
 const emit = defineEmits<{ 'update:show': [v: boolean]; submitted: [] }>()
@@ -21,7 +45,7 @@ const maxConnPerServer = ref(5)
 const proxy = ref('')
 const expandedNames = ref<string[]>([])
 const submitting = ref(false)
-const torrentFiles = ref<{ name: string; base64: string }[]>([])
+const torrentFiles = ref<TorrentEntry[]>([])
 
 const { browse } = useDirBrowser(dir)
 const { selectedCategory, categoryOptions } = useCategoryDir(dir)
@@ -123,10 +147,40 @@ async function pickTorrent() {
       message.error(`读取种子文件失败：${String(e)}`)
     }
   }
+  if (torrentFiles.value.length === 1) {
+    try {
+      const parsed = await invoke<{ name: string; files: { path: string; length: number }[] }>('parse_torrent_files', {
+        b64: torrentFiles.value[0].base64,
+      })
+      if (parsed.files.length > 1) {
+        torrentFiles.value[0].parsedFiles = parsed.files.map((f) => ({
+          path: f.path,
+          length: f.length,
+          selected: true,
+        }))
+      }
+    } catch {
+      // parsing failed, skip file selection
+    }
+  }
 }
 
 function removeTorrent(index: number) {
   torrentFiles.value.splice(index, 1)
+}
+
+function toggleParsedFile(index: number) {
+  const files = torrentFiles.value[0]?.parsedFiles
+  if (!files) return
+  files[index].selected = !files[index].selected
+}
+
+function selectAllParsedFiles() {
+  torrentFiles.value[0]?.parsedFiles?.forEach((f) => (f.selected = true))
+}
+
+function deselectAllParsedFiles() {
+  torrentFiles.value[0]?.parsedFiles?.forEach((f) => (f.selected = false))
 }
 
 async function submit() {
@@ -139,7 +193,14 @@ async function submit() {
     const errors: string[] = []
     for (const f of torrentFiles.value) {
       try {
-        await c.addTorrent(f.base64, [], options)
+        const opts = { ...options }
+        if (f.parsedFiles) {
+          const selected = f.parsedFiles.map((file, i) => (file.selected ? i + 1 : -1)).filter((i) => i > 0)
+          if (selected.length > 0) {
+            opts['select-file'] = selected.join(',')
+          }
+        }
+        await c.addTorrent(f.base64, [], opts)
         success++
       } catch (e) {
         errors.push(`${f.name}: ${String(e)}`)
@@ -215,6 +276,31 @@ async function submit() {
         <NTag v-for="(f, i) in torrentFiles" :key="i" size="small" closable @close="removeTorrent(i)">
           {{ f.name }}
         </NTag>
+      </div>
+
+      <div
+        v-if="torrentFiles.length === 1 && torrentFiles[0].parsedFiles && torrentFiles[0].parsedFiles.length > 1"
+        data-test="file-list"
+        style="border: 1px solid var(--n-border-color, #eee); border-radius: 4px; padding: 8px"
+      >
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px">
+          <span style="font-size: 13px; font-weight: 500">文件列表</span>
+          <div style="display: flex; gap: 4px">
+            <NButton size="tiny" data-test="select-all-files" @click="selectAllParsedFiles">全选</NButton>
+            <NButton size="tiny" data-test="deselect-all-files" @click="deselectAllParsedFiles">全不选</NButton>
+          </div>
+        </div>
+        <div style="max-height: 240px; overflow-y: auto">
+          <div
+            v-for="(f, i) in torrentFiles[0].parsedFiles"
+            :key="i"
+            style="display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 2px 0"
+          >
+            <NCheckbox :checked="f.selected" data-test="file-checkbox" @update:checked="toggleParsedFile(i)" />
+            <span style="flex: 1; word-break: break-all">{{ f.path }}</span>
+            <span style="opacity: 0.6; flex-shrink: 0">{{ fmtBytes(f.length) }}</span>
+          </div>
+        </div>
       </div>
 
       <NCollapse v-model:expanded-names="expandedNames" :display-directive="'show'">

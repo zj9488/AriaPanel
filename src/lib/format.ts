@@ -11,7 +11,7 @@ export function fmtSpeed(s: string): string {
   return `${v % 1 === 0 ? v : v.toFixed(1)} ${u[i]}`
 }
 
-export function fmtBytes(s: string): string {
+export function fmtBytes(s: string | number): string {
   const n = Number(s)
   if (!n) return '0 B'
   const u = ['B', 'KB', 'MB', 'GB', 'TB']
