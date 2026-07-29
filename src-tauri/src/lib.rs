@@ -97,8 +97,11 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let binary = match binary_path(&handle) {
-                    Ok(p) => p,
-                    Err(e) => { eprintln!("aria2 binary not found: {e}"); return; }
+                    Some(p) => p,
+                    None => {
+                        eprintln!("aria2 binary not found");
+                        return;
+                    }
                 };
                 let data_dir = handle.path().app_data_dir().unwrap_or_default();
                 let _ = std::fs::create_dir_all(&data_dir);

@@ -84,9 +84,31 @@ pub fn rpc_http_url(port: u16) -> String {
     format!("http://127.0.0.1:{port}/jsonrpc")
 }
 
-pub fn binary_path(app: &tauri::AppHandle) -> tauri::Result<PathBuf> {
-    let name = if cfg!(windows) { "resources/aria2c.exe" } else { "resources/aria2c" };
-    app.path().resolve(name, tauri::path::BaseDirectory::Resource)
+pub fn binary_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let name = if cfg!(windows) {
+        "resources/aria2c.exe"
+    } else {
+        "resources/aria2c"
+    };
+    match app
+        .path()
+        .resolve(name, tauri::path::BaseDirectory::Resource)
+    {
+        Ok(p) if p.exists() => Some(p),
+        _ => find_system_aria2c(),
+    }
+}
+
+fn find_system_aria2c() -> Option<PathBuf> {
+    let cmd = if cfg!(windows) { "aria2c.exe" } else { "aria2c" };
+    let path_var = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path_var) {
+        let candidate = dir.join(cmd);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 pub fn spawn(binary: &Path, cfg: &Aria2Config, settings: &Settings) -> std::io::Result<Child> {
@@ -259,7 +281,11 @@ mod tests {
     #[tokio::test]
     #[ignore] // 需先运行 scripts/fetch-aria2.ps1
     async fn health_check_against_real_aria2() {
-        let binary = concat!(env!("CARGO_MANIFEST_DIR"), "\\resources\\aria2c.exe");
+        let binary = if cfg!(windows) {
+            concat!(env!("CARGO_MANIFEST_DIR"), "\\resources\\aria2c.exe")
+        } else {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/resources/aria2c")
+        };
         let cfg = Aria2Config {
             port: pick_free_port_for_test(),
             secret: "testsecret".into(),

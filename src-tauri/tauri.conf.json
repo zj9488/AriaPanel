@@ -27,9 +27,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": "all",
     "publisher": "zj9488",
-    "resources": ["resources/aria2c.exe"],
+    "resources": ["resources/aria2c*"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

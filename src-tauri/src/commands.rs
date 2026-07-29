@@ -65,7 +65,7 @@ pub async fn save_settings(
         return Ok(SaveResult { restarted: false, endpoint: None });
     }
 
-    let binary = crate::aria2::binary_path(&app).map_err(|e| e.to_string())?;
+    let binary = crate::aria2::binary_path(&app).ok_or("aria2 binary not found")?;
     let cfg = crate::aria2::new_config(&data_dir, &settings);
     let new_port = cfg.port;
     let new_secret = cfg.secret.clone();
@@ -142,6 +142,21 @@ pub fn open_folder(path: String) {
                 .creation_flags(0x08000000)
                 .spawn();
         }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if p.is_file() {
+            let _ = std::process::Command::new("open")
+                .arg("-R")
+                .arg(p)
+                .spawn();
+        } else {
+            let _ = std::process::Command::new("open").arg(&dir).spawn();
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(&dir).spawn();
     }
 }
 
@@ -243,8 +258,8 @@ pub fn start_crash_recovery(handle: tauri::AppHandle) {
             None => return,
         };
         let binary = match crate::aria2::binary_path(&handle) {
-            Ok(p) => p,
-            Err(_) => {
+            Some(p) => p,
+            None => {
                 let _ = handle.emit("aria2://failed", ());
                 return;
             }
@@ -308,7 +323,7 @@ pub async fn restart_aria2(state: State<'_, AppState>, app: tauri::AppHandle) ->
         let _ = std::mem::replace(&mut *state.supervisor.lock().unwrap(), sup);
     }
 
-    let binary = crate::aria2::binary_path(&app).map_err(|e| e.to_string())?;
+    let binary = crate::aria2::binary_path(&app).ok_or("aria2 binary not found")?;
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let settings_path = crate::settings::settings_path(&data_dir);
     let settings = crate::settings::load_settings(&settings_path);
