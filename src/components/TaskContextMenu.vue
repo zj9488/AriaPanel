@@ -24,12 +24,11 @@ function options() {
   if (props.status === 'active') base.push({ label: '暂停', key: 'pause' })
   if (props.status === 'paused' || props.status === 'waiting') base.push({ label: '恢复', key: 'unpause' })
   base.push({ label: '打开文件夹', key: 'openFolder' })
-  const configured = props.categories.filter((c) => c.dir)
-  if (configured.length > 0) {
+  if (props.categories.length > 0) {
     base.push({
       label: '重新分类',
       key: 'reclassify',
-      children: configured.map((c) => ({ label: c.name, key: `reclassify:${c.dir}` })),
+      children: props.categories.map((c) => ({ label: c.name, key: `reclassify:${c.dir}` })),
     })
   }
   base.push({ label: '强制暂停', key: 'forcePause' })

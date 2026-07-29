@@ -21,7 +21,7 @@ describe('TaskContextMenu', () => {
     document.body.innerHTML = ''
   })
 
-  it('renders reclassify submenu when categories have configured dirs', () => {
+  it('renders reclassify submenu with all categories regardless of dir', () => {
     const w = mountMenu({
       categories: [
         { name: '下载', dir: '' },
@@ -35,18 +35,15 @@ describe('TaskContextMenu', () => {
     }>
     const reclassify = opts.find((o) => o.key === 'reclassify')
     expect(reclassify).toBeDefined()
-    expect(reclassify!.children).toHaveLength(1)
-    expect(reclassify!.children![0].label).toBe('音乐')
-    expect(reclassify!.children![0].key).toBe('reclassify:D:/Music')
+    expect(reclassify!.children).toHaveLength(2)
+    expect(reclassify!.children![0].label).toBe('下载')
+    expect(reclassify!.children![0].key).toBe('reclassify:')
+    expect(reclassify!.children![1].label).toBe('音乐')
+    expect(reclassify!.children![1].key).toBe('reclassify:D:/Music')
   })
 
-  it('hides reclassify when no categories have configured dirs', () => {
-    const w = mountMenu({
-      categories: [
-        { name: '下载', dir: '' },
-        { name: '音乐', dir: '' },
-      ],
-    })
+  it('hides reclassify when categories list is empty', () => {
+    const w = mountMenu({ categories: [] })
     const opts = w.findComponent(NDropdown).props('options') as Array<{
       key: string
     }>
