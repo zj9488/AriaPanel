@@ -33,11 +33,12 @@ jobs:
               cp /tmp/aria2-extract/aria2-1.37.0-win-64bit-build1/aria2c.exe src-tauri/resources/
               ls -lh src-tauri/resources/aria2c.exe
           - platform: macos-latest
-            target: universal-apple-darwin
-            rust-targets: 'aarch64-apple-darwin x86_64-apple-darwin'
+            target: aarch64-apple-darwin
+            rust-targets: ''
             fetch-script: |
               brew install aria2
               bash scripts/fetch-aria2.sh
+              ls -lh src-tauri/resources/aria2c
           - platform: ubuntu-22.04
             target: ''
             rust-targets: ''
@@ -45,6 +46,7 @@ jobs:
               sudo apt-get update
               sudo apt-get install -y aria2
               bash scripts/fetch-aria2.sh
+              ls -lh src-tauri/resources/aria2c
 
     runs-on: ${{ matrix.platform }}
     steps:
