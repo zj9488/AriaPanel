@@ -112,6 +112,17 @@ fn find_system_aria2c() -> Option<PathBuf> {
 }
 
 pub fn spawn(binary: &Path, cfg: &Aria2Config, settings: &Settings) -> std::io::Result<Child> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(binary) {
+            let mut perms = meta.permissions();
+            if perms.mode() & 0o111 == 0 {
+                perms.set_mode(0o755);
+                let _ = std::fs::set_permissions(binary, perms);
+            }
+        }
+    }
     let mut cmd = Command::new(binary);
     cmd.args(build_args(cfg))
         .args(build_global_args(settings))
