@@ -15,6 +15,7 @@ import DiagnosticsModal from '@/components/DiagnosticsModal.vue'
 import { useTaskStore } from '@/stores/task'
 import { usePrefStore } from '@/stores/preferences'
 import { useConnectionStore } from '@/stores/connection'
+import { useCategoryStore } from '@/stores/category'
 import { invoke } from '@tauri-apps/api/core'
 import type { Aria2Api } from '@/composables/useAria2'
 import { useTaskOperations } from '@/composables/useTaskOperations'
@@ -28,6 +29,7 @@ const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 const message = useMessage()
 const notification = useNotification()
 const conn = useConnectionStore()
+const cats = useCategoryStore()
 
 const displayTasks = computed(() => {
   const list = [...tasks.visibleTasks]
@@ -129,7 +131,9 @@ function openContextMenu(gid: string, e: MouseEvent) {
       :y="ctx.y"
       :status="ctx.status"
       :is-bittorrent="ctx.isBittorrent"
+      :categories="cats.categories"
       @select="(op) => operate(ctx.gid, op)"
+      @reclassify="(dir) => changeTaskOption(ctx.gid, { dir })"
       @close="ctx.show = false"
     />
     <RetryDialog
