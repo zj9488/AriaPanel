@@ -33,8 +33,13 @@ function load(): Category[] {
 
 export const useCategoryStore = defineStore('category', () => {
   const categories = ref<Category[]>(load())
+  const defaultDir = ref('')
 
   watch(categories, (v) => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true, flush: 'sync' })
+
+  function setDefaultDir(dir: string) {
+    defaultDir.value = dir
+  }
 
   function addCategory(name: string, dir: string) {
     const id = name.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now().toString(36)
@@ -62,13 +67,28 @@ export const useCategoryStore = defineStore('category', () => {
 
   function matchCategory(task: { dir: string }, categoryId: string): boolean {
     const cat = categories.value.find((c) => c.id === categoryId)
-    if (!cat || !cat.dir) return false
-    return task.dir === cat.dir
+    if (!cat) return false
+    const effectiveDir = cat.dir || defaultDir.value
+    if (!effectiveDir) return false
+    return task.dir === effectiveDir
   }
 
   function isUncategorized(task: { dir: string }): boolean {
-    return !categories.value.some((c) => c.dir && c.dir === task.dir)
+    return !categories.value.some((c) => {
+      const effectiveDir = c.dir || defaultDir.value
+      return effectiveDir && effectiveDir === task.dir
+    })
   }
 
-  return { categories, addCategory, updateCategory, removeCategory, getCategory, matchCategory, isUncategorized }
+  return {
+    categories,
+    defaultDir,
+    setDefaultDir,
+    addCategory,
+    updateCategory,
+    removeCategory,
+    getCategory,
+    matchCategory,
+    isUncategorized,
+  }
 })

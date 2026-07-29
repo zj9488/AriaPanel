@@ -71,10 +71,16 @@ describe('useCategoryStore', () => {
     expect(s.matchCategory(mkTask('g2', 'D:/Other'), 'music')).toBe(false)
   })
 
-  it('matchCategory: empty-dir category matches nothing', () => {
+  it('matchCategory: empty-dir category matches nothing without defaultDir', () => {
     const s = useCategoryStore()
     s.updateCategory('music', '音乐', 'D:/Music')
-    expect(s.matchCategory(mkTask('g1', 'D:/Music'), 'downloads')).toBe(false)
+    expect(s.matchCategory(mkTask('g1', 'D:/dl'), 'downloads')).toBe(false)
+  })
+
+  it('matchCategory: empty-dir category resolves to defaultDir', () => {
+    const s = useCategoryStore()
+    s.setDefaultDir('D:/dl')
+    expect(s.matchCategory(mkTask('g1', 'D:/dl'), 'downloads')).toBe(true)
     expect(s.matchCategory(mkTask('g2', 'D:/Other'), 'downloads')).toBe(false)
   })
 
@@ -85,9 +91,11 @@ describe('useCategoryStore', () => {
     expect(s.isUncategorized(mkTask('g2', 'D:/Other'))).toBe(true)
   })
 
-  it('isUncategorized: all categories unconfigured means all tasks uncategorized', () => {
+  it('isUncategorized: empty-dir categories resolve to defaultDir', () => {
     const s = useCategoryStore()
-    expect(s.isUncategorized(mkTask('g1', 'D:/dl'))).toBe(true)
+    s.setDefaultDir('D:/dl')
+    expect(s.isUncategorized(mkTask('g1', 'D:/dl'))).toBe(false)
+    expect(s.isUncategorized(mkTask('g2', 'D:/Other'))).toBe(true)
   })
 
   it('restores from localStorage', () => {
