@@ -26,19 +26,17 @@ jobs:
         include:
           - platform: windows-latest
             target: ''
+            rust-targets: ''
             fetch-script: powershell -ExecutionPolicy Bypass -File scripts/fetch-aria2.ps1
           - platform: macos-latest
-            target: aarch64-apple-darwin
-            fetch-script: |
-              brew install aria2
-              bash scripts/fetch-aria2.sh
-          - platform: macos-13
-            target: x86_64-apple-darwin
+            target: universal-apple-darwin
+            rust-targets: 'aarch64-apple-darwin x86_64-apple-darwin'
             fetch-script: |
               brew install aria2
               bash scripts/fetch-aria2.sh
           - platform: ubuntu-22.04
             target: ''
+            rust-targets: ''
             fetch-script: |
               sudo apt-get update
               sudo apt-get install -y aria2
@@ -60,7 +58,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust-targets }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
