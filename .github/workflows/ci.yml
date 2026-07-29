@@ -43,10 +43,15 @@ jobs:
             libxdo-dev \
             libssl-dev \
             libayatana-appindicator3-dev \
-            librsvg2-dev
+            librsvg2-dev \
+            aria2
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Fetch aria2c binary
+        shell: bash
+        run: bash scripts/fetch-aria2.sh
 
       - name: Lint
         run: pnpm lint
