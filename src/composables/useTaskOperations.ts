@@ -39,6 +39,21 @@ export function useTaskOperations(
         case 'forceRemove':
           await c.forcePurge(gid, t?.status ?? 'active')
           break
+        case 'removeWithFiles': {
+          if (!t) return
+          await c.forcePurge(gid, t.status)
+          const paths: string[] = []
+          for (const f of t.files) {
+            if (f.path) {
+              paths.push(f.path)
+              paths.push(`${f.path}.aria2`)
+            }
+          }
+          if (paths.length > 0) {
+            await invoke('delete_task_files', { paths })
+          }
+          break
+        }
         case 'copyLink':
           if (t) await navigator.clipboard?.writeText(t.files[0]?.uris[0]?.uri ?? '')
           return

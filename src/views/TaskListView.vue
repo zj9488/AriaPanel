@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, inject, type Ref } from 'vue'
-import { useMessage, useNotification, NAlert, NButton } from 'naive-ui'
+import { useMessage, useNotification, useDialog, NAlert, NButton } from 'naive-ui'
 import Sidebar from '@/components/Sidebar.vue'
 import TopBar from '@/components/TopBar.vue'
 import BulkToolbar from '@/components/BulkToolbar.vue'
@@ -22,12 +22,14 @@ import { useTaskOperations } from '@/composables/useTaskOperations'
 import { useDetailPoller } from '@/composables/useDetailPoller'
 import { useClipboardWatcher } from '@/composables/useClipboardWatcher'
 import { fmtProgress, taskName } from '@/lib/format'
+import type { TaskOp } from '@/lib/task-op'
 
 const tasks = useTaskStore()
 const prefs = usePrefStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')!
 const message = useMessage()
 const notification = useNotification()
+const dialog = useDialog()
 const conn = useConnectionStore()
 const cats = useCategoryStore()
 
@@ -101,6 +103,20 @@ function handleReclassify(categoryId: string) {
   const cat = cats.getCategory(categoryId)
   if (cat?.dir) changeTaskOption(ctx.value.gid, { dir: cat.dir })
 }
+
+function handleSelect(op: TaskOp) {
+  if (op === 'removeWithFiles') {
+    dialog.warning({
+      title: '删除任务和文件',
+      content: '将永久删除任务及已下载的文件，此操作不可恢复。',
+      positiveText: '删除',
+      negativeText: '取消',
+      onPositiveClick: () => operate(ctx.value.gid, 'removeWithFiles'),
+    })
+    return
+  }
+  operate(ctx.value.gid, op)
+}
 </script>
 
 <template>
@@ -138,7 +154,7 @@ function handleReclassify(categoryId: string) {
       :status="ctx.status"
       :is-bittorrent="ctx.isBittorrent"
       :categories="cats.categories"
-      @select="(op) => operate(ctx.gid, op)"
+      @select="handleSelect"
       @reclassify="handleReclassify"
       @close="ctx.show = false"
     />

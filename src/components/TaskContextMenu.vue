@@ -35,6 +35,7 @@ function options() {
   if (!props.isBittorrent) base.push({ label: '更换链接重试', key: 'retryWithUrl' })
   base.push({ label: '删除', key: 'remove' })
   base.push({ label: '强制删除', key: 'forceRemove' })
+  base.push({ label: '删除任务和文件', key: 'removeWithFiles' })
   return base
 }
 function pick(key: string) {

@@ -1,2 +1,11 @@
 export type TaskOp =
-  'pause' | 'unpause' | 'remove' | 'forcePause' | 'forceRemove' | 'retry' | 'retryWithUrl' | 'copyLink' | 'openFolder'
+  | 'pause'
+  | 'unpause'
+  | 'remove'
+  | 'forcePause'
+  | 'forceRemove'
+  | 'removeWithFiles'
+  | 'retry'
+  | 'retryWithUrl'
+  | 'copyLink'
+  | 'openFolder'

@@ -60,4 +60,15 @@ describe('TaskContextMenu', () => {
     expect(w.emitted('reclassify')).toBeTruthy()
     expect(w.emitted('reclassify')![0]).toEqual(['music'])
   })
+
+  it('includes removeWithFiles in menu options', () => {
+    const w = mountMenu()
+    const opts = w.findComponent(NDropdown).props('options') as Array<{
+      key: string
+      label: string
+    }>
+    const item = opts.find((o) => o.key === 'removeWithFiles')
+    expect(item).toBeDefined()
+    expect(item!.label).toBe('删除任务和文件')
+  })
 })

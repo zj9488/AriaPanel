@@ -145,6 +145,24 @@ pub fn open_folder(path: String) {
     }
 }
 
+#[tauri::command]
+pub fn delete_task_files(paths: Vec<String>) -> Result<usize, String> {
+    let mut deleted = 0;
+    for path in &paths {
+        let p = std::path::Path::new(path);
+        if !p.exists() {
+            continue;
+        }
+        if p.is_dir() {
+            std::fs::remove_dir_all(p).map_err(|e| format!("{path}: {e}"))?;
+        } else {
+            std::fs::remove_file(p).map_err(|e| format!("{path}: {e}"))?;
+        }
+        deleted += 1;
+    }
+    Ok(deleted)
+}
+
 pub fn encode_file_base64(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     use base64::Engine;
@@ -391,5 +409,40 @@ mod tests {
         let b64 = base64::engine::general_purpose::STANDARD.encode(b"not valid bencode");
         let result = parse_torrent_files(b64);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn delete_task_files_removes_existing_files() {
+        let dir = std::env::temp_dir();
+        let f1 = dir.join("ap_del_test1.bin");
+        let f2 = dir.join("ap_del_test2.bin");
+        std::fs::write(&f1, b"data1").unwrap();
+        std::fs::write(&f2, b"data2").unwrap();
+        let result = delete_task_files(vec![
+            f1.to_string_lossy().to_string(),
+            f2.to_string_lossy().to_string(),
+        ]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 2);
+        assert!(!f1.exists());
+        assert!(!f2.exists());
+    }
+
+    #[test]
+    fn delete_task_files_skips_nonexistent() {
+        let result = delete_task_files(vec!["/nonexistent/ap_skip_test.bin".to_string()]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn delete_task_files_removes_directory() {
+        let dir = std::env::temp_dir().join("ap_del_test_dir");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("inner.bin"), b"data").unwrap();
+        let result = delete_task_files(vec![dir.to_string_lossy().to_string()]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+        assert!(!dir.exists());
     }
 }

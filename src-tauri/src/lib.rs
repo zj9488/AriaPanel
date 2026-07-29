@@ -154,6 +154,7 @@ pub fn run() {
             commands::restart_aria2,
             commands::read_torrent_base64,
             commands::parse_torrent_files,
+            commands::delete_task_files,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
