@@ -27,7 +27,11 @@ jobs:
           - platform: windows-latest
             target: ''
             rust-targets: ''
-            fetch-script: powershell -ExecutionPolicy Bypass -File scripts/fetch-aria2.ps1
+            fetch-script: |
+              curl -L -o /tmp/aria2.zip https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip
+              unzip -o /tmp/aria2.zip -d /tmp/aria2-extract
+              cp /tmp/aria2-extract/aria2-1.37.0-win-64bit-build1/aria2c.exe src-tauri/resources/
+              ls -lh src-tauri/resources/aria2c.exe
           - platform: macos-latest
             target: universal-apple-darwin
             rust-targets: 'aarch64-apple-darwin x86_64-apple-darwin'
