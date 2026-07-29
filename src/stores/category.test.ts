@@ -71,17 +71,18 @@ describe('useCategoryStore', () => {
     expect(s.matchCategory(mkTask('g2', 'D:/Other'), 'music')).toBe(false)
   })
 
-  it('matchCategory: empty-dir category matches nothing without defaultDir', () => {
+  it('matchCategory: empty-dir category matches nothing without explicit mapping', () => {
     const s = useCategoryStore()
     s.updateCategory('music', '音乐', 'D:/Music')
     expect(s.matchCategory(mkTask('g1', 'D:/dl'), 'downloads')).toBe(false)
   })
 
-  it('matchCategory: empty-dir category resolves to defaultDir', () => {
+  it('matchCategory: explicit mapping takes priority over dir', () => {
     const s = useCategoryStore()
-    s.setDefaultDir('D:/dl')
-    expect(s.matchCategory(mkTask('g1', 'D:/dl'), 'downloads')).toBe(true)
-    expect(s.matchCategory(mkTask('g2', 'D:/Other'), 'downloads')).toBe(false)
+    s.updateCategory('music', '音乐', 'D:/Music')
+    s.setTaskCategory('g1', 'downloads')
+    expect(s.matchCategory(mkTask('g1', 'D:/Music'), 'downloads')).toBe(true)
+    expect(s.matchCategory(mkTask('g1', 'D:/Music'), 'music')).toBe(false)
   })
 
   it('isUncategorized: tasks not matching any configured category', () => {
@@ -91,11 +92,26 @@ describe('useCategoryStore', () => {
     expect(s.isUncategorized(mkTask('g2', 'D:/Other'))).toBe(true)
   })
 
-  it('isUncategorized: empty-dir categories resolve to defaultDir', () => {
+  it('isUncategorized: explicit mapping makes task categorized', () => {
     const s = useCategoryStore()
-    s.setDefaultDir('D:/dl')
-    expect(s.isUncategorized(mkTask('g1', 'D:/dl'))).toBe(false)
-    expect(s.isUncategorized(mkTask('g2', 'D:/Other'))).toBe(true)
+    s.setTaskCategory('g1', 'downloads')
+    expect(s.isUncategorized(mkTask('g1', 'D:/Other'))).toBe(false)
+  })
+
+  it('removeCategory cleans up explicit mappings', () => {
+    const s = useCategoryStore()
+    s.setTaskCategory('g1', 'downloads')
+    s.removeCategory('downloads')
+    expect(s.taskCategories['g1']).toBeUndefined()
+  })
+
+  it('syncTaskCategories removes stale entries', () => {
+    const s = useCategoryStore()
+    s.setTaskCategory('g1', 'downloads')
+    s.setTaskCategory('g2', 'music')
+    s.syncTaskCategories(new Set(['g1']))
+    expect(s.taskCategories['g1']).toBe('downloads')
+    expect(s.taskCategories['g2']).toBeUndefined()
   })
 
   it('restores from localStorage', () => {

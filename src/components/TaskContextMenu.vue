@@ -11,11 +11,11 @@ const props = withDefaults(
     y: number
     status: TaskStatus
     isBittorrent: boolean
-    categories?: { name: string; dir: string }[]
+    categories?: { id: string; name: string; dir: string }[]
   }>(),
   { categories: () => [] },
 )
-const emit = defineEmits<{ select: [op: TaskOp]; close: []; reclassify: [dir: string] }>()
+const emit = defineEmits<{ select: [op: TaskOp]; close: []; reclassify: [categoryId: string] }>()
 
 function options() {
   const base: { label: string; key: string; children?: { label: string; key: string }[] }[] = [
@@ -28,7 +28,7 @@ function options() {
     base.push({
       label: '重新分类',
       key: 'reclassify',
-      children: props.categories.map((c) => ({ label: c.name, key: `reclassify:${c.dir}` })),
+      children: props.categories.map((c) => ({ label: c.name, key: `reclassify:${c.id}` })),
     })
   }
   base.push({ label: '强制暂停', key: 'forcePause' })

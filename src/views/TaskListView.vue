@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, watch, type Ref } from 'vue'
+import { ref, computed, inject, type Ref } from 'vue'
 import { useMessage, useNotification, NAlert, NButton } from 'naive-ui'
 import Sidebar from '@/components/Sidebar.vue'
 import TopBar from '@/components/TopBar.vue'
@@ -30,12 +30,6 @@ const message = useMessage()
 const notification = useNotification()
 const conn = useConnectionStore()
 const cats = useCategoryStore()
-
-watch(
-  () => api.value?.dir,
-  (d) => cats.setDefaultDir(d ?? ''),
-  { immediate: true },
-)
 
 const displayTasks = computed(() => {
   const list = [...tasks.visibleTasks]
@@ -101,6 +95,12 @@ function openContextMenu(gid: string, e: MouseEvent) {
   if (!t) return
   ctx.value = { show: true, x: e.clientX, y: e.clientY, gid, status: t.status, isBittorrent: !!t.bittorrent }
 }
+
+function handleReclassify(categoryId: string) {
+  cats.setTaskCategory(ctx.value.gid, categoryId)
+  const cat = cats.getCategory(categoryId)
+  if (cat?.dir) changeTaskOption(ctx.value.gid, { dir: cat.dir })
+}
 </script>
 
 <template>
@@ -139,7 +139,7 @@ function openContextMenu(gid: string, e: MouseEvent) {
       :is-bittorrent="ctx.isBittorrent"
       :categories="cats.categories"
       @select="(op) => operate(ctx.gid, op)"
-      @reclassify="(dir) => changeTaskOption(ctx.gid, { dir: dir || (api?.dir ?? '') })"
+      @reclassify="handleReclassify"
       @close="ctx.show = false"
     />
     <RetryDialog

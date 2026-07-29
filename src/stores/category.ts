@@ -8,6 +8,7 @@ export interface Category {
 }
 
 const STORAGE_KEY = 'ap:categories'
+const TASK_CAT_KEY = 'ap:task-categories'
 
 export const UNCATEGORIZED_ID = '__uncategorized__'
 
@@ -31,14 +32,38 @@ function load(): Category[] {
   }
 }
 
+function loadTaskCats(): Record<string, string> {
+  const raw = localStorage.getItem(TASK_CAT_KEY)
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return {}
+    return parsed as Record<string, string>
+  } catch {
+    return {}
+  }
+}
+
 export const useCategoryStore = defineStore('category', () => {
   const categories = ref<Category[]>(load())
-  const defaultDir = ref('')
+  const taskCategories = ref<Record<string, string>>(loadTaskCats())
 
   watch(categories, (v) => localStorage.setItem(STORAGE_KEY, JSON.stringify(v)), { deep: true, flush: 'sync' })
+  watch(taskCategories, (v) => localStorage.setItem(TASK_CAT_KEY, JSON.stringify(v)), { deep: true, flush: 'sync' })
 
-  function setDefaultDir(dir: string) {
-    defaultDir.value = dir
+  function setTaskCategory(gid: string, categoryId: string) {
+    taskCategories.value[gid] = categoryId
+  }
+
+  function syncTaskCategories(activeGids: Set<string>) {
+    let changed = false
+    for (const gid of Object.keys(taskCategories.value)) {
+      if (!activeGids.has(gid)) {
+        delete taskCategories.value[gid]
+        changed = true
+      }
+    }
+    if (changed) taskCategories.value = { ...taskCategories.value }
   }
 
   function addCategory(name: string, dir: string) {
@@ -58,6 +83,10 @@ export const useCategoryStore = defineStore('category', () => {
     const cat = categories.value.find((c) => c.id === id)
     if (!cat) return false
     categories.value = categories.value.filter((c) => c.id !== id)
+    for (const gid of Object.keys(taskCategories.value)) {
+      if (taskCategories.value[gid] === id) delete taskCategories.value[gid]
+    }
+    taskCategories.value = { ...taskCategories.value }
     return true
   }
 
@@ -65,25 +94,24 @@ export const useCategoryStore = defineStore('category', () => {
     return categories.value.find((c) => c.id === id)
   }
 
-  function matchCategory(task: { dir: string }, categoryId: string): boolean {
+  function matchCategory(task: { gid: string; dir: string }, categoryId: string): boolean {
+    const explicit = taskCategories.value[task.gid]
+    if (explicit) return explicit === categoryId
     const cat = categories.value.find((c) => c.id === categoryId)
-    if (!cat) return false
-    const effectiveDir = cat.dir || defaultDir.value
-    if (!effectiveDir) return false
-    return task.dir === effectiveDir
+    if (!cat || !cat.dir) return false
+    return task.dir === cat.dir
   }
 
-  function isUncategorized(task: { dir: string }): boolean {
-    return !categories.value.some((c) => {
-      const effectiveDir = c.dir || defaultDir.value
-      return effectiveDir && effectiveDir === task.dir
-    })
+  function isUncategorized(task: { gid: string; dir: string }): boolean {
+    if (taskCategories.value[task.gid]) return false
+    return !categories.value.some((c) => c.dir && c.dir === task.dir)
   }
 
   return {
     categories,
-    defaultDir,
-    setDefaultDir,
+    taskCategories,
+    setTaskCategory,
+    syncTaskCategories,
     addCategory,
     updateCategory,
     removeCategory,

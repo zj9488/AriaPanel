@@ -67,6 +67,7 @@ export const useTaskStore = defineStore('task', () => {
     order.value = all.map((t) => t.gid)
     const ids = new Set(all.map((t) => t.gid))
     selection.value = new Set([...selection.value].filter((g) => ids.has(g)))
+    useCategoryStore().syncTaskCategories(ids)
   }
 
   function upsert(task: Aria2Task) {
