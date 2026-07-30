@@ -1,6 +1,6 @@
 [package]
 name = "ariapanel"
-version = "0.1.0"
+version = "0.3.0"
 description = "A lightweight aria2 GUI built with Tauri"
 authors = ["zj9488"]
 license = "MIT"
