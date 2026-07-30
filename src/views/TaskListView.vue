@@ -12,6 +12,7 @@ import NewTaskModal from '@/components/NewTaskModal.vue'
 import TaskDetailDrawer from '@/components/TaskDetailDrawer.vue'
 import SettingsModal from '@/components/SettingsModal.vue'
 import DiagnosticsModal from '@/components/DiagnosticsModal.vue'
+import UpdateNotification from '@/components/UpdateNotification.vue'
 import { useTaskStore } from '@/stores/task'
 import { usePrefStore } from '@/stores/preferences'
 import { useConnectionStore } from '@/stores/connection'
@@ -178,5 +179,6 @@ function handleSelect(op: TaskOp) {
     <SettingsModal v-model:show="settingsShow" @saved="api?.refresh()" />
     <NewTaskModal v-model:show="newTaskShow" :default-dir="api?.dir ?? ''" @submitted="api?.refresh()" />
     <DiagnosticsModal />
+    <UpdateNotification />
   </div>
 </template>
