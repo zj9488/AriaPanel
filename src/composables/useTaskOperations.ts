@@ -116,9 +116,15 @@ export function useTaskOperations(
   }
 
   async function onAdd(url: string, dir: string, filename: string, proxy: string, split: number) {
-    const c = api.value?.client
+    const a = api.value
+    const c = a?.client
     if (!c) return
-    const options: Record<string, string> = { dir, split: String(split), 'max-connection-per-server': String(split) }
+    const finalDir = dir || a.dir
+    const options: Record<string, string> = {
+      dir: finalDir,
+      split: String(split),
+      'max-connection-per-server': String(split),
+    }
     if (filename) options.out = filename
     if (proxy) options['all-proxy'] = proxy
     try {
