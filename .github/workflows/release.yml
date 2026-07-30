@@ -25,7 +25,7 @@ jobs:
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: AriaPanel ${{ inputs.tag || github.ref_name }}
-          draft: true
+          draft: false
           prerelease: false
 
   build:
@@ -104,9 +104,12 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: 'AriaPanel ${{ inputs.tag || github.ref_name }}'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
+          updaterJsonPreferNsis: true
           args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
