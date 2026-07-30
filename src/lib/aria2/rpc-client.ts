@@ -16,7 +16,13 @@ export class Aria2Client {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    if (!resp.ok) throw new Error(`rpc http ${resp.status}`)
+    if (!resp.ok) {
+      let detail = ''
+      try {
+        detail = await resp.text()
+      } catch {}
+      throw new Error(`rpc ${method} http ${resp.status}${detail ? `: ${detail}` : ''}`)
+    }
     const data = (await resp.json()) as RpcResponse<T>
     if (data.error) throw new Error(data.error.message)
     return data.result as T
