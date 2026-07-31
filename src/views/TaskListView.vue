@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, type Ref } from 'vue'
+import { ref, computed, inject, watch, type Ref } from 'vue'
 import { useMessage, useNotification, useDialog, NAlert, NButton } from 'naive-ui'
 import Sidebar from '@/components/Sidebar.vue'
 import TopBar from '@/components/TopBar.vue'
@@ -75,6 +75,20 @@ const ctx = ref({
 const detailShow = ref(false)
 const settingsShow = ref(false)
 const newTaskShow = ref(false)
+const pendingMagnetUrl = ref('')
+
+function handleUrlAdd(url: string, dir: string, filename: string, proxy: string, split: number) {
+  if (url.startsWith('magnet:')) {
+    pendingMagnetUrl.value = url
+    newTaskShow.value = true
+  } else {
+    onAdd(url, dir, filename, proxy, split)
+  }
+}
+
+watch(newTaskShow, (v) => {
+  if (!v) pendingMagnetUrl.value = ''
+})
 
 function onRowClick(gid: string) {
   tasks.selectedGid = gid
@@ -136,7 +150,7 @@ function handleSelect(op: TaskOp) {
       <Sidebar />
       <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
         <BulkToolbar />
-        <AddUrlBar ref="addUrlRef" :default-dir="api?.dir ?? ''" :on-add="onAdd" />
+        <AddUrlBar ref="addUrlRef" :default-dir="api?.dir ?? ''" :on-add="handleUrlAdd" />
         <div style="flex: 1; overflow: auto" @contextmenu.prevent>
           <TaskTable
             :tasks="displayTasks"
@@ -177,7 +191,15 @@ function handleSelect(op: TaskOp) {
       @update:show="onDrawerClose"
     />
     <SettingsModal v-model:show="settingsShow" @saved="api?.refresh()" />
-    <NewTaskModal v-model:show="newTaskShow" :default-dir="api?.dir ?? ''" @submitted="api?.refresh()" />
+    <NewTaskModal
+      v-model:show="newTaskShow"
+      :default-dir="api?.dir ?? ''"
+      :prefilled-url="pendingMagnetUrl"
+      @submitted="
+        pendingMagnetUrl = ''
+        api?.refresh()
+      "
+    />
     <DiagnosticsModal />
     <UpdateNotification />
   </div>

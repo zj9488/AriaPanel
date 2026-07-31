@@ -14,8 +14,28 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 const mockAddUri = vi.fn().mockResolvedValue('gid123')
 const mockAddTorrent = vi.fn().mockResolvedValue('gid-torrent')
+const mockTellStatus = vi.fn().mockResolvedValue({
+  gid: 'gid123',
+  status: 'active',
+  files: [],
+})
+const mockForceRemove = vi.fn().mockResolvedValue(undefined)
+const mockRemoveDownloadResult = vi.fn().mockResolvedValue(undefined)
+const mockGetGlobalOption = vi.fn().mockResolvedValue({
+  'bt-metadata-only': 'false',
+  'bt-save-metadata': 'false',
+})
+const mockChangeGlobalOption = vi.fn().mockResolvedValue(undefined)
 const mockApi = {
-  client: { addUri: mockAddUri, addTorrent: mockAddTorrent },
+  client: {
+    addUri: mockAddUri,
+    addTorrent: mockAddTorrent,
+    tellStatus: mockTellStatus,
+    forceRemove: mockForceRemove,
+    removeDownloadResult: mockRemoveDownloadResult,
+    getGlobalOption: mockGetGlobalOption,
+    changeGlobalOption: mockChangeGlobalOption,
+  },
   refresh: vi.fn(),
   dir: 'D:/downloads',
 }
@@ -56,6 +76,15 @@ describe('NewTaskModal', () => {
     document.body.innerHTML = ''
     mockAddUri.mockClear()
     mockAddTorrent.mockClear()
+    mockTellStatus.mockReset().mockResolvedValue({
+      gid: 'gid123',
+      status: 'active',
+      files: [],
+    })
+    mockForceRemove.mockClear()
+    mockRemoveDownloadResult.mockClear()
+    mockGetGlobalOption.mockClear()
+    mockChangeGlobalOption.mockClear()
   })
 
   it('renders textarea and submit button', () => {
@@ -115,6 +144,7 @@ describe('NewTaskModal', () => {
   })
 
   it('submits magnet without HTTP-only options', async () => {
+    vi.useFakeTimers()
     mountModal()
     await new DOMWrapper(el('textarea')).setValue('magnet:?xt=urn:btih:abc123')
     await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
@@ -128,6 +158,146 @@ describe('NewTaskModal', () => {
         out: expect.anything(),
       }),
     )
+    vi.useRealTimers()
+  })
+
+  it('magnet sets global bt-metadata-only then polls until complete', async () => {
+    vi.useFakeTimers()
+    mockTellStatus.mockResolvedValue({
+      gid: 'gid123',
+      status: 'complete',
+      dir: 'D:/downloads',
+      infoHash: 'a1b2c3d4e5f67890',
+      bittorrent: { info: { name: 'test torrent' } },
+      files: [],
+    })
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('dGVzdCB0b3JyZW50')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [
+            { path: 'file1.bin', length: 100 },
+            { path: 'file2.bin', length: 200 },
+          ],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('textarea')).setValue('magnet:?xt=urn:btih:abc123')
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    vi.advanceTimersByTime(500)
+    await flushPromises()
+    expect(mockChangeGlobalOption).toHaveBeenCalledWith({
+      'bt-metadata-only': 'true',
+      'bt-save-metadata': 'true',
+    })
+    expect(mockChangeGlobalOption).toHaveBeenLastCalledWith({
+      'bt-metadata-only': 'false',
+      'bt-save-metadata': 'false',
+    })
+    expect(mockRemoveDownloadResult).toHaveBeenCalledWith('gid123')
+    expect(document.body.textContent).toContain('file1.bin')
+    expect(document.body.textContent).toContain('file2.bin')
+    vi.useRealTimers()
+  })
+
+  it('magnet submit with selected files calls addTorrent with select-file', async () => {
+    vi.useFakeTimers()
+    mockTellStatus.mockResolvedValue({
+      gid: 'gid123',
+      status: 'complete',
+      dir: 'D:/downloads',
+      infoHash: 'a1b2c3d4e5f67890',
+      bittorrent: { info: { name: 'test torrent' } },
+      files: [],
+    })
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('dGVzdCB0b3JyZW50')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'test',
+          files: [
+            { path: 'file1.bin', length: 100 },
+            { path: 'file2.bin', length: 200 },
+            { path: 'file3.bin', length: 300 },
+          ],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('textarea')).setValue('magnet:?xt=urn:btih:abc123')
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    vi.advanceTimersByTime(500)
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="magnet-deselect-all"]')).trigger('click')
+    await flushPromises()
+    const checkboxes = document.body.querySelectorAll('[data-test="magnet-file-checkbox"]')
+    await new DOMWrapper(checkboxes[2] as HTMLElement).trigger('click')
+    await flushPromises()
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    expect(mockAddTorrent).toHaveBeenCalledWith(
+      'dGVzdCB0b3JyZW50',
+      [],
+      expect.objectContaining({ 'select-file': '3', dir: 'D:/downloads' }),
+    )
+    vi.useRealTimers()
+  })
+
+  it('single-file magnet adds via addTorrent without select-file', async () => {
+    vi.useFakeTimers()
+    mockTellStatus.mockResolvedValue({
+      gid: 'gid123',
+      status: 'complete',
+      dir: 'D:/downloads',
+      infoHash: 'a1b2c3d4e5f67890',
+      bittorrent: { info: { name: 'single torrent' } },
+      files: [],
+    })
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === 'read_torrent_base64') return Promise.resolve('dGVzdCB0b3JyZW50')
+      if (cmd === 'parse_torrent_files')
+        return Promise.resolve({
+          name: 'single',
+          files: [{ path: 'only.bin', length: 100 }],
+        })
+      return Promise.resolve(null)
+    })
+    mountModal()
+    await new DOMWrapper(el('textarea')).setValue('magnet:?xt=urn:btih:abc123')
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    vi.advanceTimersByTime(500)
+    await flushPromises()
+    expect(mockAddTorrent).toHaveBeenCalledWith(
+      'dGVzdCB0b3JyZW50',
+      [],
+      expect.objectContaining({ dir: 'D:/downloads' }),
+    )
+    vi.useRealTimers()
+  })
+
+  it('magnet restores global options on error', async () => {
+    vi.useFakeTimers()
+    mockTellStatus.mockResolvedValue({
+      gid: 'gid123',
+      status: 'error',
+      files: [],
+    })
+    mountModal()
+    await new DOMWrapper(el('textarea')).setValue('magnet:?xt=urn:btih:abc123')
+    await new DOMWrapper(el('button[data-test="submit"]')).trigger('click')
+    await flushPromises()
+    vi.advanceTimersByTime(500)
+    await flushPromises()
+    expect(mockChangeGlobalOption).toHaveBeenCalledWith({
+      'bt-metadata-only': 'false',
+      'bt-save-metadata': 'false',
+    })
+    vi.useRealTimers()
   })
 
   it('submits multiple urls in batch', async () => {

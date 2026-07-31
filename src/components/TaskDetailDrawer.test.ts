@@ -176,8 +176,7 @@ describe('TaskDetailDrawer', () => {
       attachTo: document.body,
     })
     expect(document.body.querySelectorAll('[data-test="file-checkbox"]')).toHaveLength(3)
-    expect(document.body.textContent).toContain('全选')
-    expect(document.body.textContent).toContain('全不选')
+    expect(document.body.textContent).toContain('编辑选择')
   })
 
   it('hides file checkboxes for single-file tasks', () => {
@@ -187,7 +186,25 @@ describe('TaskDetailDrawer', () => {
     expect(w.findAll('[data-test="file-checkbox"]')).toHaveLength(0)
   })
 
-  it('select all calls changeOption with all indices', async () => {
+  it('entering edit mode shows batch buttons', async () => {
+    mount(TaskDetailDrawer, {
+      props: {
+        show: true,
+        detail: multiFileBtDetail,
+        taskOptions: {},
+        operate: () => {},
+        changeOption: () => {},
+      },
+      attachTo: document.body,
+    })
+    await new DOMWrapper(document.body.querySelector('[data-test="edit-files"]')!).trigger('click')
+    expect(document.body.textContent).toContain('全选')
+    expect(document.body.textContent).toContain('全不选')
+    expect(document.body.textContent).toContain('应用')
+    expect(document.body.textContent).toContain('取消')
+  })
+
+  it('edit mode: select all then apply sends all indices', async () => {
     const changeOption = vi.fn()
     mount(TaskDetailDrawer, {
       props: {
@@ -199,27 +216,31 @@ describe('TaskDetailDrawer', () => {
       },
       attachTo: document.body,
     })
+    await new DOMWrapper(document.body.querySelector('[data-test="edit-files"]')!).trigger('click')
     await new DOMWrapper(document.body.querySelector('[data-test="select-all-files"]')!).trigger('click')
+    await new DOMWrapper(document.body.querySelector('[data-test="apply-files"]')!).trigger('click')
     expect(changeOption).toHaveBeenCalledWith('g1', { 'select-file': '1,2,3' })
   })
 
-  it('deselect all calls changeOption with empty string', async () => {
-    const changeOption = vi.fn()
+  it('edit mode: deselect all disables apply and shows hint', async () => {
     mount(TaskDetailDrawer, {
       props: {
         show: true,
         detail: multiFileBtDetail,
         taskOptions: {},
         operate: () => {},
-        changeOption,
+        changeOption: () => {},
       },
       attachTo: document.body,
     })
+    await new DOMWrapper(document.body.querySelector('[data-test="edit-files"]')!).trigger('click')
     await new DOMWrapper(document.body.querySelector('[data-test="deselect-all-files"]')!).trigger('click')
-    expect(changeOption).toHaveBeenCalledWith('g1', { 'select-file': '' })
+    expect(document.body.textContent).toContain('至少保留一个文件')
+    const applyBtn = document.body.querySelector('[data-test="apply-files"]')! as HTMLButtonElement
+    expect(applyBtn.disabled).toBe(true)
   })
 
-  it('toggling file checkbox calls changeOption with correct indices', async () => {
+  it('edit mode: toggle files then apply sends correct indices', async () => {
     const changeOption = vi.fn()
     mount(TaskDetailDrawer, {
       props: {
@@ -231,9 +252,30 @@ describe('TaskDetailDrawer', () => {
       },
       attachTo: document.body,
     })
+    await new DOMWrapper(document.body.querySelector('[data-test="edit-files"]')!).trigger('click')
     const checkboxes = document.body.querySelectorAll('[data-test="file-checkbox"]')
     await new DOMWrapper(checkboxes[0]!).trigger('click')
-    expect(changeOption).toHaveBeenCalledWith('g1', { 'select-file': '3' })
+    await new DOMWrapper(checkboxes[1]!).trigger('click')
+    await new DOMWrapper(document.body.querySelector('[data-test="apply-files"]')!).trigger('click')
+    expect(changeOption).toHaveBeenCalledWith('g1', { 'select-file': '2,3' })
+  })
+
+  it('edit mode: cancel exits without calling changeOption', async () => {
+    const changeOption = vi.fn()
+    mount(TaskDetailDrawer, {
+      props: {
+        show: true,
+        detail: multiFileBtDetail,
+        taskOptions: {},
+        operate: () => {},
+        changeOption,
+      },
+      attachTo: document.body,
+    })
+    await new DOMWrapper(document.body.querySelector('[data-test="edit-files"]')!).trigger('click')
+    await new DOMWrapper(document.body.querySelector('[data-test="select-all-files"]')!).trigger('click')
+    await new DOMWrapper(document.body.querySelector('[data-test="cancel-edit-files"]')!).trigger('click')
+    expect(changeOption).not.toHaveBeenCalled()
   })
 
   it('shows stop seeding label for completed BT tasks', () => {

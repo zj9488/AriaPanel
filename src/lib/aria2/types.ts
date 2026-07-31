@@ -36,6 +36,8 @@ export interface Aria2Task {
   seeder?: string
   errorCode?: string
   errorMessage?: string
+  followedBy?: string[]
+  following?: string
 }
 
 export interface Peer {

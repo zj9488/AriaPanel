@@ -63,29 +63,60 @@ function applySeedRatio() {
   props.changeOption(t.value.gid, { 'seed-ratio': val })
 }
 
-function toggleFile(index: number) {
+const editMode = ref(false)
+const localSelected = ref<number[]>([])
+
+const applyDisabled = computed(() => localSelected.value.length === 0)
+
+function enterEditMode() {
   const d = t.value
   if (!d) return
-  const current = d.files.map((f, i) => (f.selected === 'true' ? i + 1 : -1)).filter((i) => i > 0)
-  const pos = current.indexOf(index + 1)
-  if (pos >= 0) current.splice(pos, 1)
-  else current.push(index + 1)
-  current.sort((a, b) => a - b)
-  props.changeOption(d.gid, { 'select-file': current.join(',') })
+  localSelected.value = d.files.map((f, i) => (f.selected === 'true' ? i + 1 : -1)).filter((i) => i > 0)
+  editMode.value = true
 }
 
-function selectAllFiles() {
-  const d = t.value
-  if (!d) return
-  const indices = d.files.map((_, i) => i + 1).join(',')
-  props.changeOption(d.gid, { 'select-file': indices })
+function exitEditMode() {
+  editMode.value = false
 }
 
-function deselectAllFiles() {
+function toggleFileLocal(index: number) {
+  const idx = index + 1
+  const pos = localSelected.value.indexOf(idx)
+  if (pos >= 0) localSelected.value.splice(pos, 1)
+  else localSelected.value.push(idx)
+  localSelected.value.sort((a, b) => a - b)
+}
+
+function selectAllLocal() {
   const d = t.value
   if (!d) return
-  props.changeOption(d.gid, { 'select-file': '' })
+  localSelected.value = d.files.map((_, i) => i + 1)
 }
+
+function deselectAllLocal() {
+  localSelected.value = []
+}
+
+function applySelection() {
+  const d = t.value
+  if (!d || localSelected.value.length === 0) return
+  props.changeOption(d.gid, { 'select-file': localSelected.value.join(',') })
+  editMode.value = false
+}
+
+watch(
+  () => props.show,
+  (show) => {
+    if (!show) editMode.value = false
+  },
+)
+
+watch(
+  () => t.value?.gid,
+  () => {
+    editMode.value = false
+  },
+)
 
 function completedPieces(d: Aria2TaskDetail): number {
   if (!d.bitfield) return 0
@@ -180,9 +211,23 @@ function uriStatusColor(s: string): 'success' | 'warning' | 'error' | 'default' 
         <section>
           <div style="display: flex; align-items: center; justify-content: space-between">
             <h4 style="margin: 0 0 4px; font-size: 13px; opacity: 0.7">文件列表</h4>
-            <div v-if="isMultiFileBt" style="display: flex; gap: 4px">
-              <NButton size="tiny" data-test="select-all-files" @click="selectAllFiles">全选</NButton>
-              <NButton size="tiny" data-test="deselect-all-files" @click="deselectAllFiles">全不选</NButton>
+            <div v-if="isMultiFileBt && !editMode" style="display: flex; gap: 4px">
+              <NButton size="tiny" data-test="edit-files" @click="enterEditMode">编辑选择</NButton>
+            </div>
+            <div v-if="isMultiFileBt && editMode" style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap">
+              <NButton size="tiny" data-test="select-all-files" @click="selectAllLocal">全选</NButton>
+              <NButton size="tiny" data-test="deselect-all-files" @click="deselectAllLocal"> 全不选 </NButton>
+              <NButton
+                size="tiny"
+                type="primary"
+                data-test="apply-files"
+                :disabled="applyDisabled"
+                @click="applySelection"
+              >
+                应用
+              </NButton>
+              <NButton size="tiny" data-test="cancel-edit-files" @click="exitEditMode">取消</NButton>
+              <span v-if="applyDisabled" style="font-size: 12px; opacity: 0.6">至少保留一个文件</span>
             </div>
           </div>
           <div
@@ -192,9 +237,10 @@ function uriStatusColor(s: string): 'success' | 'warning' | 'error' | 'default' 
           >
             <NCheckbox
               v-if="isMultiFileBt"
-              :checked="f.selected === 'true'"
+              :checked="editMode ? localSelected.includes(i + 1) : f.selected === 'true'"
+              :disabled="!editMode"
               data-test="file-checkbox"
-              @update:checked="toggleFile(i)"
+              @update:checked="toggleFileLocal(i)"
             />
             <span style="flex: 1">
               {{ f.path.split(/[\\/]/).pop() }} — {{ fmtBytes(f.length) }}
