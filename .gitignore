@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Documentation
+docs/superpowers/
+
 # Build output
 dist/
 src-tauri/target/
