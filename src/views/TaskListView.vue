@@ -90,6 +90,11 @@ watch(newTaskShow, (v) => {
   if (!v) pendingMagnetUrl.value = ''
 })
 
+function onNewTaskSubmitted() {
+  pendingMagnetUrl.value = ''
+  api?.refresh()
+}
+
 function onRowClick(gid: string) {
   tasks.selectedGid = gid
   detailShow.value = true
@@ -195,10 +200,7 @@ function handleSelect(op: TaskOp) {
       v-model:show="newTaskShow"
       :default-dir="api?.dir ?? ''"
       :prefilled-url="pendingMagnetUrl"
-      @submitted="
-        pendingMagnetUrl = ''
-        api?.refresh()
-      "
+      @submitted="onNewTaskSubmitted"
     />
     <DiagnosticsModal />
     <UpdateNotification />
