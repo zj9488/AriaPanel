@@ -92,7 +92,7 @@ watch(newTaskShow, (v) => {
 
 function onNewTaskSubmitted() {
   pendingMagnetUrl.value = ''
-  api?.refresh()
+  api.value?.refresh()
 }
 
 function onRowClick(gid: string) {
