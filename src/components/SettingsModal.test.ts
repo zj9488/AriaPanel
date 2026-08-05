@@ -200,4 +200,56 @@ describe('SettingsModal', () => {
     await new Promise((r) => setTimeout(r, 0))
     expect(document.body.textContent ?? '').toContain('无匹配选项')
   })
+
+  it('saves advanced options via changeGlobalOption and resets a value', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValue({ restarted: false })
+    const changeGlobalOption = vi.fn().mockResolvedValue(undefined)
+    const api = shallowRef({
+      client: {
+        getGlobalOption: vi.fn().mockResolvedValue({
+          'max-tries': '7',
+          'http-accept-gzip': 'true',
+        }),
+        changeGlobalOption,
+      },
+    })
+    mount(
+      {
+        components: { NConfigProvider, NMessageProvider, NDialogProvider },
+        provide: { 'aria2-api': api },
+        template: `
+          <NConfigProvider>
+            <NMessageProvider>
+              <NDialogProvider>
+                <SettingsModal :show="true" />
+              </NDialogProvider>
+            </NMessageProvider>
+          </NConfigProvider>
+        `,
+      },
+      { global: { components: { SettingsModal } } },
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    const tabs = document.body.querySelectorAll('.n-tabs-tab')
+    const advTab = Array.from(tabs).find((t) => (t as HTMLElement).textContent?.includes('高级'))
+    ;(advTab as HTMLElement).click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const inputs = document.body.querySelectorAll('.n-input input')
+    const maxTries = Array.from(inputs).find((i) => (i as HTMLInputElement).value === '7')
+    expect(maxTries).toBeTruthy()
+    ;(maxTries as HTMLInputElement).value = '10'
+    await (maxTries as HTMLInputElement).dispatchEvent(new Event('input'))
+
+    const saveBtn = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      (b as HTMLElement).textContent?.includes('保存'),
+    )
+    ;(saveBtn as HTMLElement).click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(changeGlobalOption).toHaveBeenCalled()
+    const args = (changeGlobalOption as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(args['max-tries']).toBe('10')
+  })
 })

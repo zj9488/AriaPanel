@@ -94,7 +94,7 @@ watch(
       }
     }
   },
-  { flush: 'sync' },
+  { flush: 'sync', immediate: true },
 )
 
 function resetAdvanced(key: string) {
@@ -119,6 +119,7 @@ async function save() {
           'max-overall-download-limit': s.value.maxOverallDownloadLimit,
           'max-overall-upload-limit': s.value.maxOverallUploadLimit,
           ...(s.value.allProxy ? { 'all-proxy': s.value.allProxy } : {}),
+          ...advancedValues.value,
         })
       }
     }
