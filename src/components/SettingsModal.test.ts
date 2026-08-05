@@ -203,13 +203,36 @@ describe('SettingsModal', () => {
 
   it('saves advanced options via changeGlobalOption and resets a value', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
-    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValue({ restarted: false })
+    ;(invoke as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        port: 6800,
+        secret: '',
+        dir: '',
+        maxConcurrentDownloads: 5,
+        maxConnectionPerServer: 5,
+        minSplitSize: '20M',
+        split: 5,
+        maxOverallDownloadLimit: '0',
+        maxOverallUploadLimit: '0',
+        allProxy: '',
+        clipboardWatch: true,
+        btMaxPeers: 55,
+        seedRatio: 1.0,
+        seedTime: 0,
+        enableDht: true,
+        btListenPort: '6881-6999',
+        dhtListenPort: '6881-6999',
+        btTracker: '',
+        btSaveMetadata: false,
+      })
+      .mockResolvedValue({ restarted: false })
     const changeGlobalOption = vi.fn().mockResolvedValue(undefined)
     const api = shallowRef({
       client: {
         getGlobalOption: vi.fn().mockResolvedValue({
           'max-tries': '7',
           'http-accept-gzip': 'true',
+          'max-concurrent-downloads': '99',
         }),
         changeGlobalOption,
       },
@@ -251,5 +274,6 @@ describe('SettingsModal', () => {
     expect(changeGlobalOption).toHaveBeenCalled()
     const args = (changeGlobalOption as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(args['max-tries']).toBe('10')
+    expect(args['max-concurrent-downloads']).toBe('5')
   })
 })

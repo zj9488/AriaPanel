@@ -112,6 +112,7 @@ async function save() {
       const c = api?.value?.client
       if (c) {
         await c.changeGlobalOption({
+          ...advancedValues.value,
           'max-concurrent-downloads': String(s.value.maxConcurrentDownloads),
           'max-connection-per-server': String(s.value.maxConnectionPerServer),
           'min-split-size': s.value.minSplitSize,
@@ -119,7 +120,6 @@ async function save() {
           'max-overall-download-limit': s.value.maxOverallDownloadLimit,
           'max-overall-upload-limit': s.value.maxOverallUploadLimit,
           ...(s.value.allProxy ? { 'all-proxy': s.value.allProxy } : {}),
-          ...advancedValues.value,
         })
       }
     }
