@@ -201,7 +201,7 @@ describe('SettingsModal', () => {
     expect(document.body.textContent ?? '').toContain('无匹配选项')
   })
 
-  it('saves advanced options via changeGlobalOption and resets a value', async () => {
+  it('saves advanced options via changeGlobalOption', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
     ;(invoke as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({

@@ -16,7 +16,6 @@ export const advancedOptions: AdvancedOptionDef[] = [
   { key: 'check-certificate', type: 'boolean', label: '校验 SSL 证书', default: 'true' },
   { key: 'max-file-not-found', type: 'number', label: '最大 404 重试次数', default: '0' },
   { key: 'remote-time', type: 'boolean', label: '从服务器获取文件时间', default: 'false' },
-  { key: 'disk-cache', type: 'string', label: '磁盘缓存大小', default: '16M' },
   { key: 'realtime-chunk-checksum', type: 'boolean', label: '实时分块校验', default: 'true' },
   {
     key: 'console-log-level',

@@ -80,6 +80,7 @@ watch(
   () => props.show,
   async (v) => {
     if (v) {
+      advSearch.value = ''
       try {
         const got = await invoke<AppSettings>('get_settings')
         s.value = { ...got, port: got.port, secret: got.secret }
@@ -111,16 +112,20 @@ async function save() {
     if (!result.restarted) {
       const c = api?.value?.client
       if (c) {
-        await c.changeGlobalOption({
-          ...advancedValues.value,
+        const adv = { ...advancedValues.value }
+        delete adv['disk-cache']
+        const res = await c.changeGlobalOption({
+          ...adv,
           'max-concurrent-downloads': String(s.value.maxConcurrentDownloads),
           'max-connection-per-server': String(s.value.maxConnectionPerServer),
           'min-split-size': s.value.minSplitSize,
           split: String(s.value.split),
           'max-overall-download-limit': s.value.maxOverallDownloadLimit,
           'max-overall-upload-limit': s.value.maxOverallUploadLimit,
-          ...(s.value.allProxy ? { 'all-proxy': s.value.allProxy } : {}),
+          'all-proxy': s.value.allProxy,
         })
+        const failed = Array.isArray(res) ? res : []
+        if (failed.length) message.warning(`部分选项未生效：${failed.join(', ')}`)
       }
     }
     message.success(result.restarted ? '设置已保存，aria2 已重启' : '设置已保存')
