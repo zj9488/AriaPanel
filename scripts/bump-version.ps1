@@ -12,10 +12,14 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 
 $root = "$PSScriptRoot\.."
 
+function write-utf8-no-bom($path, $content) {
+  [System.IO.File]::WriteAllText($path, $content, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 function bump-json($path, $key) {
   $content = Get-Content $path -Raw -Encoding UTF8
   $content = $content -replace "`"$key`":\s*`"[^`"]+`"", "`"$key`": `"$Version`""
-  Set-Content $path -Value $content -Encoding UTF8 -NoNewline
+  write-utf8-no-bom $path $content
   Write-Output "  $($key): $Version"
 }
 
@@ -27,7 +31,7 @@ bump-json "$root\src-tauri\tauri.conf.json" version
 $cargoPath = "$root\src-tauri\Cargo.toml"
 $cargo = Get-Content $cargoPath -Raw -Encoding UTF8
 $cargo = $cargo -replace '^version\s*=\s*"[^"]+"', "version = `"$Version`""
-Set-Content $cargoPath -Value $cargo -Encoding UTF8 -NoNewline
+write-utf8-no-bom $cargoPath $cargo
 Write-Output "  Cargo.toml: $Version"
 
 Write-Output ''
