@@ -90,7 +90,7 @@ defineExpose({ setUrl })
       />
       <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0">
         <span style="font-size: 12px; opacity: 0.6; white-space: nowrap">线程</span>
-        <NInputNumber v-model:value="split" size="small" :min="1" :max="16" style="width: 70px" />
+        <NInputNumber v-model:value="split" size="small" :min="1" :max="16" style="width: 88px" />
       </div>
     </div>
   </div>

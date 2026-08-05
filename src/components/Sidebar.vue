@@ -13,6 +13,7 @@ const cats = useCategoryStore()
 const conn = useConnectionStore()
 const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const dialog = useDialog()
+const version = __APP_VERSION__
 
 const statusItems = computed(() => [
   { key: 'all' as TaskFilter, label: '全部', count: tasks.active.length + tasks.waiting.length + tasks.stopped.length },
@@ -215,6 +216,7 @@ function onCategorySubmit(name: string, dir: string) {
 
     <div style="margin-top: auto; padding: 8px 14px 0; font-size: 11px; opacity: 0.5; word-break: break-all">
       保存到：<br />{{ api?.dir ?? '…' }}
+      <br />AriaPanel v{{ version }}
     </div>
   </nav>
 
