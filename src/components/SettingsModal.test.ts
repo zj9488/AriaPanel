@@ -80,4 +80,124 @@ describe('SettingsModal', () => {
     expect(text).toContain('Tracker')
     expect(text).toContain('保存种子')
   })
+
+  it('renders advanced tab options with search filter', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValue({})
+    const api = shallowRef({
+      client: {
+        getGlobalOption: vi.fn().mockResolvedValue({
+          'max-tries': '7',
+          'http-accept-gzip': 'true',
+          'console-log-level': 'debug',
+          'disk-cache': '32M',
+        }),
+      },
+    })
+    mount(
+      {
+        components: { NConfigProvider, NMessageProvider, NDialogProvider },
+        provide: { 'aria2-api': api },
+        template: `
+          <NConfigProvider>
+            <NMessageProvider>
+              <NDialogProvider>
+                <SettingsModal :show="true" />
+              </NDialogProvider>
+            </NMessageProvider>
+          </NConfigProvider>
+        `,
+      },
+      { global: { components: { SettingsModal } } },
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    const tabs = document.body.querySelectorAll('.n-tabs-tab')
+    const advTab = Array.from(tabs).find((t) => (t as HTMLElement).textContent?.includes('高级'))
+    expect(advTab).toBeTruthy()
+    ;(advTab as HTMLElement).click()
+    await new Promise((r) => setTimeout(r, 0))
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('最大重试次数')
+    expect(text).toContain('接受 Gzip 压缩')
+    expect(text).toContain('日志级别')
+    expect(text).toContain('FTP 传输类型')
+  })
+
+  it('filters advanced options by key and label via search', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValue({})
+    const api = shallowRef({
+      client: { getGlobalOption: vi.fn().mockResolvedValue({}) },
+    })
+    mount(
+      {
+        components: { NConfigProvider, NMessageProvider, NDialogProvider },
+        provide: { 'aria2-api': api },
+        template: `
+          <NConfigProvider>
+            <NMessageProvider>
+              <NDialogProvider>
+                <SettingsModal :show="true" />
+              </NDialogProvider>
+            </NMessageProvider>
+          </NConfigProvider>
+        `,
+      },
+      { global: { components: { SettingsModal } } },
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    const tabs = document.body.querySelectorAll('.n-tabs-tab')
+    const advTab = Array.from(tabs).find((t) => (t as HTMLElement).textContent?.includes('高级'))
+    ;(advTab as HTMLElement).click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const searchInput = Array.from(document.body.querySelectorAll('.n-input input')).find((i) =>
+      (i as HTMLInputElement).placeholder?.includes('过滤'),
+    )
+    expect(searchInput).toBeTruthy()
+
+    ;(searchInput as HTMLInputElement).value = 'gzip'
+    await (searchInput as HTMLInputElement).dispatchEvent(new Event('input'))
+    await new Promise((r) => setTimeout(r, 0))
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('接受 Gzip 压缩')
+    expect(text).not.toContain('最大重试次数')
+  })
+
+  it('shows empty state when search has no match', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValue({})
+    const api = shallowRef({
+      client: { getGlobalOption: vi.fn().mockResolvedValue({}) },
+    })
+    mount(
+      {
+        components: { NConfigProvider, NMessageProvider, NDialogProvider },
+        provide: { 'aria2-api': api },
+        template: `
+          <NConfigProvider>
+            <NMessageProvider>
+              <NDialogProvider>
+                <SettingsModal :show="true" />
+              </NDialogProvider>
+            </NMessageProvider>
+          </NConfigProvider>
+        `,
+      },
+      { global: { components: { SettingsModal } } },
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    const tabs = document.body.querySelectorAll('.n-tabs-tab')
+    const advTab = Array.from(tabs).find((t) => (t as HTMLElement).textContent?.includes('高级'))
+    ;(advTab as HTMLElement).click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const searchInput = Array.from(document.body.querySelectorAll('.n-input input')).find((i) =>
+      (i as HTMLInputElement).placeholder?.includes('过滤'),
+    )
+    ;(searchInput as HTMLInputElement).value = 'zzz-no-match'
+    await (searchInput as HTMLInputElement).dispatchEvent(new Event('input'))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(document.body.textContent ?? '').toContain('无匹配选项')
+  })
 })

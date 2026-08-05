@@ -1,8 +1,21 @@
 <script setup lang="ts">
-import { NButton, NInput, NInputNumber, NModal, NCheckbox, NSwitch, NTabs, NTabPane, useMessage } from 'naive-ui'
-import { ref, watch, inject, type Ref } from 'vue'
+import {
+  NButton,
+  NInput,
+  NInputNumber,
+  NModal,
+  NCheckbox,
+  NSwitch,
+  NSelect,
+  NText,
+  NTabs,
+  NTabPane,
+  useMessage,
+} from 'naive-ui'
+import { ref, watch, inject, computed, type Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { Aria2Api } from '@/composables/useAria2'
+import { advancedOptions } from '@/lib/aria2/advanced-options'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits<{ 'update:show': [v: boolean]; saved: [] }>()
@@ -53,6 +66,15 @@ const s = ref<AppSettings>({
   btSaveMetadata: false,
 })
 const loading = ref(false)
+const advancedValues = ref<Record<string, string>>({})
+const initialAdvanced = ref<Record<string, string>>({})
+const advSearch = ref('')
+
+const filteredOptions = computed(() => {
+  const q = advSearch.value.trim().toLowerCase()
+  if (!q) return advancedOptions
+  return advancedOptions.filter((o) => o.key.toLowerCase().includes(q) || o.label.toLowerCase().includes(q))
+})
 
 watch(
   () => props.show,
@@ -61,6 +83,12 @@ watch(
       try {
         const got = await invoke<AppSettings>('get_settings')
         s.value = { ...got, port: got.port, secret: got.secret }
+        const c = api?.value?.client
+        if (c) {
+          const globalOpts = await c.getGlobalOption()
+          initialAdvanced.value = globalOpts
+          advancedValues.value = { ...globalOpts }
+        }
       } catch (e) {
         message.error(`加载设置失败：${String(e)}`)
       }
@@ -68,6 +96,10 @@ watch(
   },
   { flush: 'sync' },
 )
+
+function resetAdvanced(key: string) {
+  advancedValues.value[key] = initialAdvanced.value[key] ?? ''
+}
 
 async function save() {
   loading.value = true
@@ -224,6 +256,44 @@ async function save() {
           <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
             >保存种子文件<NSwitch v-model:value="s.btSaveMetadata" size="small"
           /></label>
+        </div>
+      </NTabPane>
+      <NTabPane name="advanced" tab="高级" display-directive="show">
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 4px 0">
+          <NInput v-model:value="advSearch" size="small" placeholder="按选项名或说明过滤" clearable />
+          <div style="max-height: 360px; overflow-y: auto; display: flex; flex-direction: column">
+            <div
+              v-for="opt in filteredOptions"
+              :key="opt.key"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 4px 0;
+                border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+              "
+            >
+              <span style="flex: 1; font-size: 13px" :title="opt.key">{{ opt.label }}</span>
+              <NSelect
+                v-if="opt.type === 'enum'"
+                v-model:value="advancedValues[opt.key]"
+                size="small"
+                :options="(opt.values || []).map((v) => ({ label: v, value: v }))"
+                style="width: 120px"
+              />
+              <NSwitch
+                v-else-if="opt.type === 'boolean'"
+                :value="advancedValues[opt.key] === 'true'"
+                size="small"
+                @update:value="(v) => (advancedValues[opt.key] = String(v))"
+              />
+              <NInput v-else v-model:value="advancedValues[opt.key]" size="small" style="width: 120px" />
+              <NButton size="tiny" quaternary @click="resetAdvanced(opt.key)">重置</NButton>
+            </div>
+            <NText v-if="filteredOptions.length === 0" depth="3" style="font-size: 13px; padding: 8px 0"
+              >无匹配选项</NText
+            >
+          </div>
         </div>
       </NTabPane>
     </NTabs>
