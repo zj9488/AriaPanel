@@ -30,9 +30,17 @@ bump-json "$root\src-tauri\tauri.conf.json" version
 
 $cargoPath = "$root\src-tauri\Cargo.toml"
 $cargo = Get-Content $cargoPath -Raw -Encoding UTF8
-$cargo = $cargo -replace '^version\s*=\s*"[^"]+"', "version = `"$Version`""
+$cargo = $cargo -replace '(?m)^version\s*=\s*"[^"]+"', "version = `"$Version`""
 write-utf8-no-bom $cargoPath $cargo
 Write-Output "  Cargo.toml: $Version"
+
+$lockPath = "$root\src-tauri\Cargo.lock"
+if (Test-Path $lockPath) {
+  $lock = Get-Content $lockPath -Raw -Encoding UTF8
+  $lock = $lock -replace '(?m)^name = "ariapanel"\r?\nversion = "[^"]+"', "name = ""ariapanel""`nversion = `"$Version`""
+  write-utf8-no-bom $lockPath $lock
+  Write-Output "  Cargo.lock: $Version"
+}
 
 Write-Output ''
 Write-Output 'Done. Next: commit, tag, push:'
