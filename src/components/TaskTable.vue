@@ -5,7 +5,7 @@ import type { Aria2Task } from '@/lib/aria2/types'
 import type { TaskOp } from '@/lib/task-op'
 import { useTaskStore } from '@/stores/task'
 import { usePrefStore, type SortKey } from '@/stores/preferences'
-import { fmtSpeed, fmtBytes, fmtProgress, taskName } from '@/lib/format'
+import { fmtSpeed, fmtBytes, fmtProgress, taskName, fmtEta } from '@/lib/format'
 
 const props = defineProps<{
   tasks: Aria2Task[]
@@ -26,6 +26,7 @@ const sortableColumns: { key: SortKey; label: string }[] = [
   { key: 'progress', label: '进度' },
   { key: 'size', label: '大小' },
   { key: 'speed', label: '速度' },
+  { key: 'eta', label: '剩余时间' },
   { key: 'status', label: '状态' },
 ]
 function toggleSort(key: SortKey) {
@@ -94,6 +95,7 @@ function toggleAll(v: boolean) {
         <td style="width: 180px"><NProgress :percentage="r.pct" :height="10" /></td>
         <td style="width: 90px">{{ fmtBytes(r.t.totalLength) }}</td>
         <td>{{ fmtSpeed(r.t.downloadSpeed) }}</td>
+        <td>{{ fmtEta(r.t) }}</td>
         <td>{{ r.t.status }}</td>
         <td @click.stop>
           <template v-if="r.primary">

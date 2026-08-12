@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
-export type SortKey = 'name' | 'size' | 'progress' | 'speed' | 'status'
+export type SortKey = 'name' | 'size' | 'progress' | 'speed' | 'eta' | 'status'
 export type SortOrder = 'asc' | 'desc'
 export type ThemeMode = 'light' | 'dark' | 'system'
 

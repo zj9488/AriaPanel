@@ -22,7 +22,7 @@ import type { Aria2Api } from '@/composables/useAria2'
 import { useTaskOperations } from '@/composables/useTaskOperations'
 import { useDetailPoller } from '@/composables/useDetailPoller'
 import { useClipboardWatcher } from '@/composables/useClipboardWatcher'
-import { fmtProgress, taskName } from '@/lib/format'
+import { fmtProgress, taskName, etaSeconds } from '@/lib/format'
 import type { TaskOp } from '@/lib/task-op'
 
 const tasks = useTaskStore()
@@ -52,6 +52,9 @@ const displayTasks = computed(() => {
         break
       case 'speed':
         cmp = Number(a.downloadSpeed) - Number(b.downloadSpeed)
+        break
+      case 'eta':
+        cmp = etaSeconds(a) - etaSeconds(b)
         break
       case 'status':
         cmp = a.status.localeCompare(b.status)
