@@ -46,6 +46,8 @@ pub fn build_args(cfg: &Aria2Config) -> Vec<String> {
         "--allow-overwrite=true".into(),
         format!("--input-file={}", cfg.session.display()),
         format!("--save-session={}", cfg.session.display()),
+        "--save-session-interval=60".into(),
+        "--force-save=true".into(),
         format!("--dht-file-path={}", cfg.dht_file_path.display()),
         "--quiet=true".into(),
     ]
@@ -289,6 +291,13 @@ mod tests {
         assert!(a.contains(&"--allow-overwrite=true".to_string()));
     }
 
+    #[test]
+    fn build_args_enables_periodic_session_save() {
+        let a = build_args(&cfg());
+        assert!(a.contains(&"--save-session-interval=60".to_string()));
+        assert!(a.contains(&"--force-save=true".to_string()));
+    }
+
     #[tokio::test]
     #[ignore] // 需先运行 scripts/fetch-aria2.ps1
     async fn health_check_against_real_aria2() {
@@ -320,6 +329,8 @@ mod tests {
         std::net::TcpListener::bind("127.0.0.1:0")
             .unwrap().local_addr().unwrap().port()
     }
+
+    #[test]
 
     #[test]
     fn supervisor_starts_with_zero_restarts() {

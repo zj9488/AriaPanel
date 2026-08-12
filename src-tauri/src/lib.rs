@@ -6,38 +6,52 @@ pub mod log_buffer;
 
 use aria2::{binary_path, new_config, rpc_http_url};
 use commands::{AppState, RpcEndpoint};
-use std::sync::Mutex;
-use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tauri::{Emitter, Manager};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let save_debounce: Arc<Mutex<Option<tauri::async_runtime::JoinHandle<()>>>> =
+        Arc::new(Mutex::new(None));
+    let state_flags = StateFlags::all() - StateFlags::VISIBLE;
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let allow = window.app_handle().try_state::<AppState>()
-                    .map(|s| s.allow_exit.load(std::sync::atomic::Ordering::Relaxed))
-                    .unwrap_or(false);
-                if !allow {
-                    let _ = window.hide();
-                    api.prevent_close();
-                } else {
-                    let size = window.outer_size().unwrap_or_default();
-                    let pos = window.outer_position().unwrap_or_default();
-                    let data_dir = window.app_handle().path().app_data_dir().unwrap_or_default();
-                    let geo = serde_json::json!({
-                        "width": size.width,
-                        "height": size.height,
-                        "x": pos.x,
-                        "y": pos.y,
-                    });
-                    let _ = std::fs::write(data_dir.join("window.json"), geo.to_string());
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(state_flags)
+                .build(),
+        )
+        .on_window_event(move |window, event| {
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    let allow = window.app_handle().try_state::<AppState>()
+                        .map(|s| s.allow_exit.load(std::sync::atomic::Ordering::Relaxed))
+                        .unwrap_or(false);
+                    if !allow {
+                        let _ = window.hide();
+                        api.prevent_close();
+                    }
                 }
+                tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                    let mut d = save_debounce.lock().unwrap();
+                    if let Some(h) = d.take() {
+                        h.abort();
+                    }
+                    let ah = window.app_handle().clone();
+                    let flags = state_flags;
+                    *d = Some(tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                        let _ = ah.save_window_state(flags);
+                    }));
+                }
+                _ => {}
             }
         })
         .manage(AppState {
@@ -82,20 +96,6 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            if let Some(w) = app.get_webview_window("main") {
-                let data_dir = app.path().app_data_dir().unwrap_or_default();
-                let geo_path = data_dir.join("window.json");
-                if let Ok(json) = std::fs::read_to_string(&geo_path) {
-                    if let Ok(geo) = serde_json::from_str::<serde_json::Value>(&json) {
-                        if let (Some(width), Some(height)) = (geo["width"].as_u64(), geo["height"].as_u64()) {
-                            let _ = w.set_size(PhysicalSize::new(width as u32, height as u32));
-                        }
-                        if let (Some(x), Some(y)) = (geo["x"].as_i64(), geo["y"].as_i64()) {
-                            let _ = w.set_position(PhysicalPosition::new(x as i32, y as i32));
-                        }
-                    }
-                }
-            }
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let binary = match binary_path(&handle) {
