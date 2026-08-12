@@ -51,7 +51,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ2RkQwMDQyQjVFQ0IwNzQKUldSMHNPeTFRZ0Q5Um4zanE3cGRiZlNjWlgwcnRDOG1uYkxnYWRGS3JDSzU5TnQvS0kxY3U2YVIK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY1QUMwOTY5MDJCQTM4OEEKUldTS09Mb0NhUW1zWmE4bHIzVHJnakkvRENLazVNQXJhRUpaZDFkRllGYVprTmFTakM0aVdhMEsK",
       "endpoints": [
         "https://github.com/zj9488/AriaPanel/releases/latest/download/latest.json"
       ]
