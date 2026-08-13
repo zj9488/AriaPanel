@@ -47,7 +47,6 @@ pub fn build_args(cfg: &Aria2Config) -> Vec<String> {
         format!("--input-file={}", cfg.session.display()),
         format!("--save-session={}", cfg.session.display()),
         "--save-session-interval=60".into(),
-        "--force-save=true".into(),
         format!("--dht-file-path={}", cfg.dht_file_path.display()),
         "--quiet=true".into(),
     ]
@@ -295,7 +294,7 @@ mod tests {
     fn build_args_enables_periodic_session_save() {
         let a = build_args(&cfg());
         assert!(a.contains(&"--save-session-interval=60".to_string()));
-        assert!(a.contains(&"--force-save=true".to_string()));
+        assert!(!a.iter().any(|x| x.starts_with("--force-save")));
     }
 
     #[tokio::test]
