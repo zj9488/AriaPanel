@@ -43,6 +43,19 @@ pub fn get_restarts_count(state: State<'_, AppState>) -> u32 {
     state.supervisor.lock().unwrap().restarts_count()
 }
 
+fn resolve_download_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    let data_dir = app.path().app_data_dir().unwrap_or_default();
+    let settings = crate::settings::load_settings(&crate::settings::settings_path(&data_dir));
+    crate::aria2::download_dir(&data_dir, &settings)
+}
+
+fn is_within(path: &std::path::Path, base: &std::path::Path) -> bool {
+    match (path.canonicalize(), base.canonicalize()) {
+        (Ok(p), Ok(b)) => p.starts_with(b),
+        _ => false,
+    }
+}
+
 #[tauri::command]
 pub fn get_settings(app: tauri::AppHandle) -> Settings {
     let dir = app.path().app_data_dir().unwrap_or_default();
@@ -117,8 +130,11 @@ pub async fn save_settings(
 }
 
 #[tauri::command]
-pub fn open_folder(path: String) {
+pub fn open_folder(app: tauri::AppHandle, path: String) {
     let p = std::path::Path::new(&path);
+    if !p.exists() || !is_within(p, &resolve_download_dir(&app)) {
+        return;
+    }
     let dir = if p.is_dir() {
         p.to_path_buf()
     } else {
@@ -160,12 +176,14 @@ pub fn open_folder(path: String) {
     }
 }
 
-#[tauri::command]
-pub fn delete_task_files(paths: Vec<String>) -> Result<usize, String> {
+fn delete_task_files_impl(paths: &[String], base: &std::path::Path) -> Result<usize, String> {
     let mut deleted = 0;
-    for path in &paths {
+    for path in paths {
         let p = std::path::Path::new(path);
         if !p.exists() {
+            continue;
+        }
+        if !is_within(p, base) {
             continue;
         }
         if p.is_dir() {
@@ -178,6 +196,12 @@ pub fn delete_task_files(paths: Vec<String>) -> Result<usize, String> {
     Ok(deleted)
 }
 
+#[tauri::command]
+pub fn delete_task_files(app: tauri::AppHandle, paths: Vec<String>) -> Result<usize, String> {
+    let base = resolve_download_dir(&app);
+    delete_task_files_impl(&paths, &base)
+}
+
 pub fn encode_file_base64(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     use base64::Engine;
@@ -186,6 +210,9 @@ pub fn encode_file_base64(path: &str) -> Result<String, String> {
 
 #[tauri::command]
 pub fn read_torrent_base64(path: String) -> Result<String, String> {
+    if !path.to_ascii_lowercase().ends_with(".torrent") {
+        return Err("not a .torrent file".into());
+    }
     encode_file_base64(&path)
 }
 
@@ -433,10 +460,10 @@ mod tests {
         let f2 = dir.join("ap_del_test2.bin");
         std::fs::write(&f1, b"data1").unwrap();
         std::fs::write(&f2, b"data2").unwrap();
-        let result = delete_task_files(vec![
-            f1.to_string_lossy().to_string(),
-            f2.to_string_lossy().to_string(),
-        ]);
+        let result = delete_task_files_impl(
+            &[f1.to_string_lossy().to_string(), f2.to_string_lossy().to_string()],
+            &dir,
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 2);
         assert!(!f1.exists());
@@ -445,7 +472,10 @@ mod tests {
 
     #[test]
     fn delete_task_files_skips_nonexistent() {
-        let result = delete_task_files(vec!["/nonexistent/ap_skip_test.bin".to_string()]);
+        let result = delete_task_files_impl(
+            &["/nonexistent/ap_skip_test.bin".to_string()],
+            &std::env::temp_dir(),
+        );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 0);
     }
@@ -455,9 +485,29 @@ mod tests {
         let dir = std::env::temp_dir().join("ap_del_test_dir");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("inner.bin"), b"data").unwrap();
-        let result = delete_task_files(vec![dir.to_string_lossy().to_string()]);
+        let result = delete_task_files_impl(&[dir.to_string_lossy().to_string()], &std::env::temp_dir());
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 1);
         assert!(!dir.exists());
+    }
+
+    #[test]
+    fn delete_task_files_skips_paths_outside_base() {
+        let base = std::env::temp_dir().join("ap_containment_base");
+        std::fs::create_dir_all(&base).unwrap();
+        let outside = std::env::temp_dir().join("ap_containment_outside.bin");
+        let inside = base.join("inside.bin");
+        std::fs::write(&outside, b"x").unwrap();
+        std::fs::write(&inside, b"y").unwrap();
+        let result = delete_task_files_impl(
+            &[outside.to_string_lossy().to_string(), inside.to_string_lossy().to_string()],
+            &base,
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+        assert!(outside.exists());
+        assert!(!inside.exists());
+        let _ = std::fs::remove_file(&outside);
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

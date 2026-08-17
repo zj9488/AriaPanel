@@ -18,15 +18,19 @@ pub struct Aria2Config {
     pub dht_file_path: PathBuf,
 }
 
+pub fn download_dir(data_dir: &Path, settings: &Settings) -> PathBuf {
+    if settings.dir.is_empty() {
+        data_dir.join("downloads")
+    } else {
+        PathBuf::from(&settings.dir)
+    }
+}
+
 pub fn new_config(data_dir: &Path, settings: &Settings) -> Aria2Config {
     Aria2Config {
         port: settings.port.unwrap_or_else(pick_free_port),
         secret: settings.secret.clone().unwrap_or_else(generate_secret),
-        dir: if settings.dir.is_empty() {
-            data_dir.join("downloads")
-        } else {
-            PathBuf::from(&settings.dir)
-        },
+        dir: download_dir(data_dir, settings),
         session: data_dir.join("aria2.session.gz"),
         dht_file_path: data_dir.join("dht.dat"),
     }
@@ -156,6 +160,36 @@ pub async fn health_check(port: u16, secret: &str) -> bool {
     false
 }
 
+/// 移除 aria2 内存中所有已完成/出错/已删除的结果，使其不被写入 session 文件。
+/// 这样下次启动不会重载它们、也就不会重建 .aria2 控制文件。尽力而为，失败静默。
+async fn purge_stopped_results(client: &reqwest::Client, url: &str, secret: &str) {
+    let token = format!("token:{secret}");
+    let list_body = serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "aria2.tellStopped",
+        "params": [&token, 0, 1000, ["gid"]]
+    });
+    let gids: Vec<String> = match client.post(url).json(&list_body).send().await {
+        Ok(r) => {
+            let v: serde_json::Value = match r.json().await {
+                Ok(v) => v,
+                Err(_) => return,
+            };
+            v["result"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|t| t["gid"].as_str().map(String::from)).collect())
+                .unwrap_or_default()
+        }
+        Err(_) => return,
+    };
+    for gid in gids {
+        let body = serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "aria2.removeDownloadResult",
+            "params": [&token, gid]
+        });
+        let _ = client.post(url).json(&body).send().await;
+    }
+}
+
 const MAX_RESTARTS: u32 = 3;
 
 pub struct Supervisor {
@@ -208,10 +242,11 @@ impl Supervisor {
         self.start(binary, cfg, settings).await
     }
 
-    /// 优雅停：发 aria2.shutdown，等待 ≤5s，超时强杀。
+    /// 优雅停：先清除已完成结果（避免 session 重载时重建 .aria2），再发 aria2.shutdown，等待 ≤5s，超时强杀。
     pub async fn shutdown(&mut self, port: u16, secret: &str) {
         let url = rpc_http_url(port);
         if let Ok(client) = reqwest::Client::builder().build() {
+            purge_stopped_results(&client, &url, secret).await;
             let body = serde_json::json!({
                 "jsonrpc":"2.0","id":1,"method":"aria2.shutdown",
                 "params":[format!("token:{secret}")]
