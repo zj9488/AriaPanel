@@ -14,18 +14,18 @@ function fakeFetch(resp: unknown) {
 
 describe('Aria2Client', () => {
   it('injects token as first param', async () => {
-    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: { version: '1.37.0' } })
+    const f = fakeFetch({ jsonrpc: '2.0', id: 1, result: { downloadSpeed: '0' } })
     const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
-    await c.getVersion()
+    await c.getGlobalStat()
     const body = JSON.parse((f.mock.calls[0][1] as RequestInit).body as string)
-    expect(body.method).toBe('aria2.getVersion')
+    expect(body.method).toBe('aria2.getGlobalStat')
     expect(body.params).toEqual(['token:S'])
   })
 
   it('throws on rpc error', async () => {
     const f = fakeFetch({ jsonrpc: '2.0', id: 1, error: { code: 1, message: 'bad' } })
     const c = new Aria2Client('http://127.0.0.1:1/jsonrpc', 'S', f as unknown as typeof fetch)
-    await expect(c.getVersion()).rejects.toThrow('bad')
+    await expect(c.getGlobalStat()).rejects.toThrow('bad')
   })
 
   it('tellActive returns result array', async () => {

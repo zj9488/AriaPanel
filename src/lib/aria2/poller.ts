@@ -37,7 +37,6 @@ export class Poller {
   private async tick() {
     if (this.inFlight) return
     this.inFlight = true
-    let interval = this.active ? 1000 : 5000
     try {
       const [a, w, s] = await Promise.all([
         this.client.tellActive(),
@@ -48,14 +47,13 @@ export class Poller {
       this.onTick(a, w, s)
       if (this.failCount >= 3) this.onStatus?.(true)
       this.failCount = 0
-      interval = this.active ? 1000 : 5000
+      this.schedule(this.active ? 1000 : 5000)
     } catch {
       this.failCount++
       if (this.failCount === 3) this.onStatus?.(false)
-      interval = 1001
+      this.schedule(1001)
     } finally {
       this.inFlight = false
-      this.schedule(interval)
     }
   }
 }

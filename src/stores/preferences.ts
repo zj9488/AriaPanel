@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
 export type SortKey = 'name' | 'size' | 'progress' | 'speed' | 'eta' | 'status'
-export type SortOrder = 'asc' | 'desc'
+type SortOrder = 'asc' | 'desc'
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 export const usePrefStore = defineStore('prefs', () => {

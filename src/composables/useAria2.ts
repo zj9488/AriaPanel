@@ -93,5 +93,5 @@ export function useAria2() {
     connectToEndpoint(endpoint)
   }
 
-  return { start, getApi, reconnect, apiRef }
+  return { start, getApi, apiRef }
 }

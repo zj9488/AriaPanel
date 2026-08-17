@@ -28,9 +28,6 @@ export class Aria2Client {
     return data.result as T
   }
 
-  getVersion() {
-    return this.call<{ version: string }>('aria2.getVersion')
-  }
   getGlobalStat() {
     return this.call<GlobalStat>('aria2.getGlobalStat')
   }

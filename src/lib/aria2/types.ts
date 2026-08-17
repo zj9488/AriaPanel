@@ -1,4 +1,4 @@
-export interface RpcError {
+interface RpcError {
   code: number
   message: string
 }
@@ -40,7 +40,7 @@ export interface Aria2Task {
   following?: string
 }
 
-export interface Peer {
+interface Peer {
   peerId: string
   ip: string
   port: string

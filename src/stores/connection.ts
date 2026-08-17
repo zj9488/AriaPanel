@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { GlobalStat } from '@/lib/aria2/types'
 
-export type ConnStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
+type ConnStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
 export const useConnectionStore = defineStore('connection', () => {
   const status = ref<ConnStatus>('idle')
