@@ -95,8 +95,21 @@ pub fn parse_content_range_total(header: &str) -> Option<u64> {
     header.rsplit('/').next()?.trim().parse().ok()
 }
 
+/// 从 Content-Length 头读取大小。reqwest 的 content_length() 对 HEAD 响应
+/// 返回的是 body size hint（恒为 0），必须直接读头。
+fn header_len(resp: &reqwest::Response) -> Option<u64> {
+    resp.headers()
+        .get(reqwest::header::CONTENT_LENGTH)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
 /// 探测 URL 的资源大小：HEAD 跟随重定向取 Content-Length；
 /// 无则回退 GET + Range 解析 Content-Range。None = 服务器未提供长度。
+/// 非 2xx 一律报错——错误页的 Content-Length 不是资源大小（签名过期类网盘直链常见）。
 pub async fn probe_url_length(url: &str) -> Result<Option<u64>, String> {
     let client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(5))
@@ -104,19 +117,27 @@ pub async fn probe_url_length(url: &str) -> Result<Option<u64>, String> {
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AriaPanel")
         .build()
         .map_err(|e| e.to_string())?;
+    let mut last_err = String::new();
     if let Ok(resp) = client.head(url).send().await {
         if resp.status().is_success() {
-            if let Some(len) = resp.content_length() {
+            if let Some(len) = header_len(&resp) {
                 return Ok(Some(len));
             }
+        } else {
+            last_err = format!("HTTP {}", resp.status());
         }
+    } else {
+        last_err = "network error".into();
     }
     let resp = client
         .get(url)
         .header(reqwest::header::RANGE, "bytes=0-0")
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| if last_err.is_empty() { e.to_string() } else { last_err.clone() })?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
     if resp.status() == reqwest::StatusCode::PARTIAL_CONTENT {
         if let Some(cr) = resp.headers().get(reqwest::header::CONTENT_RANGE) {
             if let Some(total) = cr.to_str().ok().and_then(parse_content_range_total) {
@@ -124,7 +145,7 @@ pub async fn probe_url_length(url: &str) -> Result<Option<u64>, String> {
             }
         }
     }
-    Ok(resp.content_length())
+    Ok(header_len(&resp))
 }
 
 pub fn binary_path(app: &tauri::AppHandle) -> Option<PathBuf> {
@@ -364,6 +385,70 @@ mod tests {
         assert_eq!(super::parse_content_range_total("bytes 0-0/137946130"), Some(137946130));
         assert_eq!(super::parse_content_range_total("bytes 0-0/*"), None);
         assert_eq!(super::parse_content_range_total("garbage"), None);
+    }
+
+    /// 起一个对每个请求都返回固定响应的本地 HTTP 服务器，返回端口。
+    fn serve(status: &'static str, content_length: &'static str) -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                use std::io::Write;
+                let mut s = match stream {
+                    Ok(s) => s,
+                    Err(_) => break,
+                };
+                let mut buf = [0u8; 4096];
+                let _ = std::io::Read::read(&mut s, &mut buf);
+                let resp = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {content_length}\r\nConnection: close\r\n\r\n{body_placeholder}",
+                    status = status,
+                    content_length = content_length,
+                    body_placeholder = "",
+                );
+                let _ = s.write_all(resp.as_bytes());
+            }
+        });
+        port
+    }
+
+    #[test]
+    fn probe_rejects_error_responses_instead_of_trusting_error_page_length() {
+        // 模拟签名过期的网盘直链：403 + Content-Length: 13（"Link expired."）
+        let port = serve("403 Forbidden", "13");
+        let r = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(super::probe_url_length(&format!("http://127.0.0.1:{port}/f.rar")));
+        assert!(r.is_err(), "expected Err for 403, got {r:?}");
+    }
+
+    #[test]
+    fn probe_accepts_length_from_success_head() {
+        let port = serve("200 OK", "137946130");
+        let r = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(super::probe_url_length(&format!("http://127.0.0.1:{port}/f.rar")));
+        assert_eq!(r.unwrap(), Some(137946130));
+    }
+
+    #[tokio::test]
+    #[ignore] // 依赖外网与签名链接有效期
+    async fn probe_116pan_url() {
+        let url = "https://pt-n2.116pan.xyz/2026/10/06/5fa9ccd9cf4c01a1c6b7d8b5beb86b6d.rar?sig=QAPPvhrSKsfZGnCJSaMx4MdjPzc3FSEIy3wpQz9-JXs&expires=1794994070000&dlname=S34.rar";
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AriaPanel")
+            .build()
+            .unwrap();
+        let head = client.head(url).send().await.unwrap();
+        println!("HEAD status={} len={:?}", head.status(), head.content_length());
+        let body = head.text().await.unwrap_or_default();
+        println!("HEAD body: {body:?}");
+        let get = client.get(url).send().await.unwrap();
+        println!("GET status={} len={:?}", get.status(), get.content_length());
+        let getbody = get.text().await.unwrap_or_default();
+        println!("GET body: {getbody:?}");
+        let r = super::probe_url_length(url).await;
+        println!("probe result: {r:?}");
     }
 
     #[test]
