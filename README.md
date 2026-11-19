@@ -13,7 +13,7 @@ A lightweight desktop GUI for [aria2](https://aria2.github.io/), built with Taur
 - Clipboard monitoring with auto-detect download links
 - System tray with pause-all / resume-all
 - Light / dark / system theme
-- Settings panel with aria2 global options and RPC configuration
+- Settings panel with aria2 global options; RPC port/secret are generated per launch
 - Bundled aria2c — no external installation required
 
 ## Prerequisites

@@ -12,20 +12,38 @@ pub struct RpcEndpoint {
     pub dir: String,
 }
 
-#[derive(Serialize)]
-pub struct SaveResult {
-    pub restarted: bool,
-    pub endpoint: Option<RpcEndpoint>,
-}
-
 pub struct AppState {
     pub endpoint: Mutex<Option<RpcEndpoint>>,
     pub port: Mutex<Option<u16>>,
     pub secret: Mutex<Option<String>>,
+    pub cfg: Mutex<Option<crate::aria2::Aria2Config>>,
     pub supervisor: Mutex<crate::aria2::Supervisor>,
     pub allow_exit: AtomicBool,
     pub logs: std::sync::Arc<crate::log_buffer::LogBuffer>,
     pub intentional_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// 当前会话的 aria2 配置：优先用启动时生成的那份（端口/密钥每次启动随机生成，
+/// 复用同一份才能保证崩溃恢复和手动重启不漂移）。
+fn live_cfg(state: &AppState, app: &tauri::AppHandle) -> Option<crate::aria2::Aria2Config> {
+    if let Some(c) = state.cfg.lock().ok().and_then(|g| g.clone()) {
+        return Some(c);
+    }
+    let data_dir = app.path().app_data_dir().ok()?;
+    let settings = crate::settings::load_settings(&crate::settings::settings_path(&data_dir));
+    Some(crate::aria2::new_config(&data_dir, &settings))
+}
+
+/// 成功启动后把端点同步进 AppState，前端通过 get_rpc_endpoint 拿到的才是活配置。
+fn publish_endpoint(state: &AppState, cfg: &crate::aria2::Aria2Config) {
+    *state.cfg.lock().unwrap() = Some(cfg.clone());
+    *state.port.lock().unwrap() = Some(cfg.port);
+    *state.secret.lock().unwrap() = Some(cfg.secret.clone());
+    *state.endpoint.lock().unwrap() = Some(RpcEndpoint {
+        url: crate::aria2::rpc_http_url(cfg.port),
+        secret: cfg.secret.clone(),
+        dir: cfg.dir.display().to_string(),
+    });
 }
 
 #[tauri::command]
@@ -63,70 +81,11 @@ pub fn get_settings(app: tauri::AppHandle) -> Settings {
 }
 
 #[tauri::command]
-pub async fn save_settings(
-    state: State<'_, AppState>,
-    app: tauri::AppHandle,
-    settings: Settings,
-) -> Result<SaveResult, String> {
+pub async fn save_settings(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let path = crate::settings::settings_path(&data_dir);
-    let old = crate::settings::load_settings(&path);
-    let needs_restart = settings.port != old.port || settings.secret != old.secret;
     crate::settings::save_to_disk(&path, &settings);
-
-    if !needs_restart {
-        return Ok(SaveResult { restarted: false, endpoint: None });
-    }
-
-    let binary = crate::aria2::binary_path(&app).ok_or("aria2 binary not found")?;
-    let cfg = crate::aria2::new_config(&data_dir, &settings);
-    let new_port = cfg.port;
-    let new_secret = cfg.secret.clone();
-    let new_dir = cfg.dir.display().to_string();
-
-    let (old_port, old_secret) = {
-        let p = state.port.lock().unwrap().clone();
-        let s = state.secret.lock().unwrap().clone();
-        (p, s)
-    };
-
-    state.intentional_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-
-    let (ok, stderr) = {
-        let mut sup = std::mem::replace(&mut *state.supervisor.lock().unwrap(), crate::aria2::Supervisor::new());
-        let result = if let (Some(op), Some(os)) = (old_port, old_secret.as_ref()) {
-            sup.restart(&binary, op, os, &cfg, &settings).await
-        } else {
-            sup.start(&binary, &cfg, &settings).await
-        };
-        let _ = std::mem::replace(&mut *state.supervisor.lock().unwrap(), sup);
-        result
-    };
-
-    state.intentional_stop.store(false, std::sync::atomic::Ordering::Relaxed);
-
-    if ok {
-        if let Some(stderr) = stderr {
-            let logs = state.logs.clone();
-            let is = state.intentional_stop.clone();
-            let h = app.clone();
-            crate::aria2::spawn_stderr_reader(stderr, logs, is, move || {
-                start_crash_recovery(h);
-            });
-        }
-        *state.port.lock().unwrap() = Some(new_port);
-        *state.secret.lock().unwrap() = Some(new_secret.clone());
-        let ep = RpcEndpoint {
-            url: crate::aria2::rpc_http_url(new_port),
-            secret: new_secret.clone(),
-            dir: new_dir.clone(),
-        };
-        *state.endpoint.lock().unwrap() = Some(ep.clone());
-        let _ = app.emit("aria2://restarted", ep.clone());
-        Ok(SaveResult { restarted: true, endpoint: Some(ep) })
-    } else {
-        Err("aria2 restart failed".into())
-    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -300,7 +259,13 @@ pub fn start_crash_recovery(handle: tauri::AppHandle) {
         };
         let settings_path = crate::settings::settings_path(&data_dir);
         let settings = crate::settings::load_settings(&settings_path);
-        let cfg = crate::aria2::new_config(&data_dir, &settings);
+        let cfg = match live_cfg(&st, &handle) {
+            Some(c) => c,
+            None => {
+                let _ = handle.emit("aria2://failed", ());
+                return;
+            }
+        };
 
         let (ok, stderr) = {
             let mut sup = std::mem::replace(
@@ -321,6 +286,7 @@ pub fn start_crash_recovery(handle: tauri::AppHandle) {
                     start_crash_recovery(h);
                 });
             }
+            publish_endpoint(&st, &cfg);
             let _ = handle.emit("aria2://restarted", ());
         } else {
             let _ = handle.emit("aria2://failed", ());
@@ -354,7 +320,7 @@ pub async fn restart_aria2(state: State<'_, AppState>, app: tauri::AppHandle) ->
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let settings_path = crate::settings::settings_path(&data_dir);
     let settings = crate::settings::load_settings(&settings_path);
-    let cfg = crate::aria2::new_config(&data_dir, &settings);
+    let cfg = live_cfg(&state, &app).ok_or("aria2 config unavailable")?;
 
     let (ok, stderr) = {
         let mut sup = std::mem::replace(
@@ -377,6 +343,7 @@ pub async fn restart_aria2(state: State<'_, AppState>, app: tauri::AppHandle) ->
                 start_crash_recovery(h);
             });
         }
+        publish_endpoint(&state, &cfg);
         let _ = app.emit("aria2://restarted", ());
         Ok(())
     } else {

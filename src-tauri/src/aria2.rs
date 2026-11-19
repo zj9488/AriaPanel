@@ -10,6 +10,7 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 use tauri::Manager;
 
+#[derive(Clone)]
 pub struct Aria2Config {
     pub port: u16,
     pub secret: String,
@@ -28,8 +29,8 @@ pub fn download_dir(data_dir: &Path, settings: &Settings) -> PathBuf {
 
 pub fn new_config(data_dir: &Path, settings: &Settings) -> Aria2Config {
     Aria2Config {
-        port: settings.port.unwrap_or_else(pick_free_port),
-        secret: settings.secret.clone().unwrap_or_else(generate_secret),
+        port: pick_free_port(),
+        secret: generate_secret(),
         dir: download_dir(data_dir, settings),
         session: data_dir.join("aria2.session.gz"),
         dht_file_path: data_dir.join("dht.dat"),
@@ -149,13 +150,14 @@ pub async fn health_check(port: u16, secret: &str) -> bool {
         "jsonrpc": "2.0", "id": 1, "method": "aria2.getVersion",
         "params": [format!("token:{secret}")]
     });
-    for _ in 0..50 {
+    // 冷启动后杀软扫描/大会话加载可能超过 5 秒，放宽到 15 秒。
+    for _ in 0..30 {
         if let Ok(resp) = client.post(&url).json(&body).send().await {
             if resp.status().is_success() {
                 return true;
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
     false
 }
@@ -222,11 +224,23 @@ impl Supervisor {
     /// 若子进程已退出且未超上限，则重启。
     pub async fn ensure_alive(&mut self, binary: &Path, cfg: &Aria2Config, settings: &Settings) -> (bool, Option<std::process::ChildStderr>) {
         let dead = match self.child.as_mut() {
-            None => true,
-            Some(c) => match c.try_wait() {
-                Ok(None) => false,
-                _ => true,
-            },
+            None => {
+                eprintln!("[recovery] no child tracked, treating as dead");
+                true
+            }
+            Some(c) => {
+                // 进程终止是异步的：stderr EOF（管道关闭）可能先于进程对象变为
+                // signaled，立即 try_wait 会误判为存活。EOF 触发的恢复必须等它真正退出。
+                let mut status = c.try_wait().ok().flatten();
+                if status.is_none() {
+                    let start = std::time::Instant::now();
+                    while status.is_none() && start.elapsed() < std::time::Duration::from_secs(2) {
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        status = c.try_wait().ok().flatten();
+                    }
+                }
+                status.is_some()
+            }
         };
         if dead {
             if !self.can_restart() { return (false, None); }
@@ -300,6 +314,15 @@ mod tests {
     }
 
     #[test]
+    fn new_config_ignores_settings_rpc_fields() {
+        let s = Settings::default();
+        let a = new_config(Path::new("dummy"), &s);
+        let b = new_config(Path::new("dummy"), &s);
+        assert_ne!(a.port, b.port);
+        assert_ne!(a.secret, b.secret);
+    }
+
+    #[test]
     fn build_args_enables_rpc_on_localhost() {
         let a = build_args(&cfg());
         assert!(a.contains(&"--enable-rpc".to_string()));
@@ -363,8 +386,6 @@ mod tests {
         std::net::TcpListener::bind("127.0.0.1:0")
             .unwrap().local_addr().unwrap().port()
     }
-
-    #[test]
 
     #[test]
     fn supervisor_starts_with_zero_restarts() {

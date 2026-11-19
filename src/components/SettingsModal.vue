@@ -23,8 +23,6 @@ const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const message = useMessage()
 
 interface AppSettings {
-  port: number | null
-  secret: string | null
   dir: string
   maxConcurrentDownloads: number
   maxConnectionPerServer: number
@@ -45,8 +43,6 @@ interface AppSettings {
 }
 
 const s = ref<AppSettings>({
-  port: null,
-  secret: null,
   dir: '',
   maxConcurrentDownloads: 5,
   maxConnectionPerServer: 5,
@@ -83,7 +79,7 @@ watch(
       advSearch.value = ''
       try {
         const got = await invoke<AppSettings>('get_settings')
-        s.value = { ...got, port: got.port, secret: got.secret }
+        s.value = { ...got }
         const c = api?.value?.client
         if (c) {
           const globalOpts = await c.getGlobalOption()
@@ -105,30 +101,25 @@ function resetAdvanced(key: string) {
 async function save() {
   loading.value = true
   try {
-    const result = await invoke<{ restarted: boolean; endpoint: { url: string; secret: string; dir: string } | null }>(
-      'save_settings',
-      { settings: s.value },
-    )
-    if (!result.restarted) {
-      const c = api?.value?.client
-      if (c) {
-        const adv = { ...advancedValues.value }
-        delete adv['disk-cache']
-        const res = await c.changeGlobalOption({
-          ...adv,
-          'max-concurrent-downloads': String(s.value.maxConcurrentDownloads),
-          'max-connection-per-server': String(s.value.maxConnectionPerServer),
-          'min-split-size': s.value.minSplitSize,
-          split: String(s.value.split),
-          'max-overall-download-limit': s.value.maxOverallDownloadLimit,
-          'max-overall-upload-limit': s.value.maxOverallUploadLimit,
-          'all-proxy': s.value.allProxy,
-        })
-        const failed = Array.isArray(res) ? res : []
-        if (failed.length) message.warning(`部分选项未生效：${failed.join(', ')}`)
-      }
+    await invoke('save_settings', { settings: s.value })
+    const c = api?.value?.client
+    if (c) {
+      const adv = { ...advancedValues.value }
+      delete adv['disk-cache']
+      const res = await c.changeGlobalOption({
+        ...adv,
+        'max-concurrent-downloads': String(s.value.maxConcurrentDownloads),
+        'max-connection-per-server': String(s.value.maxConnectionPerServer),
+        'min-split-size': s.value.minSplitSize,
+        split: String(s.value.split),
+        'max-overall-download-limit': s.value.maxOverallDownloadLimit,
+        'max-overall-upload-limit': s.value.maxOverallUploadLimit,
+        'all-proxy': s.value.allProxy,
+      })
+      const failed = Array.isArray(res) ? res : []
+      if (failed.length) message.warning(`部分选项未生效：${failed.join(', ')}`)
     }
-    message.success(result.restarted ? '设置已保存，aria2 已重启' : '设置已保存')
+    message.success('设置已保存')
     emit('saved')
     emit('update:show', false)
   } catch (e) {
@@ -198,17 +189,6 @@ async function save() {
           <section>
             <h4 style="margin: 0 0 8px; font-size: 14px">代理</h4>
             <NInput v-model:value="s.allProxy" size="small" placeholder="如 http://127.0.0.1:7890" />
-          </section>
-          <section>
-            <h4 style="margin: 0 0 8px; font-size: 14px; color: #f0a020">RPC 设置 ⚠ 修改后自动重启 aria2</h4>
-            <div style="display: flex; flex-direction: column; gap: 6px">
-              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-                >RPC 端口<NInputNumber v-model:value="s.port" size="small" :min="1" :max="65535" style="width: 120px"
-              /></label>
-              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px"
-                >RPC 密钥<NInput v-model:value="s.secret" size="small" placeholder="留空=自动生成" style="width: 200px"
-              /></label>
-            </div>
           </section>
           <section>
             <h4 style="margin: 0 0 8px; font-size: 14px">行为</h4>

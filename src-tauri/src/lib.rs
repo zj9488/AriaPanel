@@ -58,6 +58,7 @@ pub fn run() {
             endpoint: Mutex::new(None),
             port: Mutex::new(None),
             secret: Mutex::new(None),
+            cfg: Mutex::new(None),
             supervisor: Mutex::new(aria2::Supervisor::new()),
             allow_exit: std::sync::atomic::AtomicBool::new(false),
             logs: log_buffer::LogBuffer::new(200),
@@ -108,20 +109,16 @@ pub fn run() {
                 let data_dir = handle.path().app_data_dir().unwrap_or_default();
                 let _ = std::fs::create_dir_all(&data_dir);
                 let settings_path = settings::settings_path(&data_dir);
-                let mut settings = settings::load_settings(&settings_path);
+                let settings = settings::load_settings(&settings_path);
                 let cfg = new_config(&data_dir, &settings);
                 if !cfg.session.exists() {
                     let _ = std::fs::write(&cfg.session, b"");
                 }
                 let _ = std::fs::create_dir_all(&cfg.dir);
-                if settings.port.is_none() || settings.secret.is_none() {
-                    settings.port = Some(cfg.port);
-                    settings.secret = Some(cfg.secret.clone());
-                    settings::save_to_disk(&settings_path, &settings);
-                }
                 let port = cfg.port;
                 let secret = cfg.secret.clone();
                 let st = match handle.try_state::<AppState>() { Some(s) => s, None => return };
+                *st.cfg.lock().unwrap() = Some(cfg.clone());
                 let (ok, stderr) = {
                     let mut sup = std::mem::replace(&mut *st.supervisor.lock().unwrap(), aria2::Supervisor::new());
                     let result = sup.start(&binary, &cfg, &settings).await;

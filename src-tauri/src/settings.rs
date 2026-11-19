@@ -4,10 +4,6 @@ use std::path::{Path, PathBuf};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub port: Option<u16>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub secret: Option<String>,
     #[serde(default)]
     pub dir: String,
     #[serde(default = "default_u32_5")]
@@ -55,8 +51,6 @@ fn default_bt_listen_port() -> String { "6881-6999".into() }
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            port: None,
-            secret: None,
             dir: String::new(),
             max_concurrent_downloads: 5,
             max_connection_per_server: 5,
@@ -123,8 +117,6 @@ mod tests {
     #[test]
     fn serialize_deserialize_roundtrip() {
         let s = Settings {
-            port: Some(6800),
-            secret: Some("abc".into()),
             dir: "/dl".into(),
             bt_max_peers: 100,
             seed_ratio: 1.5,
@@ -138,6 +130,18 @@ mod tests {
     }
 
     #[test]
+    fn load_ignores_legacy_rpc_fields() {
+        // 旧版本 settings.json 持久化了 port/secret，读取时必须忽略而不是解析失败。
+        let legacy = r#"{"port": 64952, "secret": "d076", "dir": "D:\\Download", "split": 8}"#;
+        let path = std::env::temp_dir().join("ap_test_legacy_settings.json");
+        std::fs::write(&path, legacy).unwrap();
+        let s = load_settings(&path);
+        assert_eq!(s.dir, "D:\\Download");
+        assert_eq!(s.split, 8);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn load_missing_file_returns_default() {
         let s = load_settings(Path::new("/nonexistent/path/settings.json"));
         assert_eq!(s.max_concurrent_downloads, 5);
@@ -147,7 +151,7 @@ mod tests {
     fn save_and_load_roundtrip() {
         let dir = std::env::temp_dir();
         let path = dir.join("ap_test_settings.json");
-        let s = Settings { port: Some(6801), dir: "/x".into(), ..Settings::default() };
+        let s = Settings { dir: "/x".into(), ..Settings::default() };
         save_to_disk(&path, &s);
         let loaded = load_settings(&path);
         assert_eq!(s, loaded);

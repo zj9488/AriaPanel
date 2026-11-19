@@ -33,7 +33,7 @@ describe('SettingsModal', () => {
     expect(document.body.textContent).toContain('最大并发下载数')
     expect(document.body.textContent).toContain('速度限制')
     expect(document.body.textContent).toContain('代理')
-    expect(document.body.textContent).toContain('RPC')
+    expect(document.body.textContent).not.toContain('RPC 设置')
   })
 
   it('renders BT settings tab with all fields', async () => {
@@ -205,8 +205,6 @@ describe('SettingsModal', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     ;(invoke as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
-        port: 6800,
-        secret: '',
         dir: '',
         maxConcurrentDownloads: 5,
         maxConnectionPerServer: 5,
@@ -225,7 +223,7 @@ describe('SettingsModal', () => {
         btTracker: '',
         btSaveMetadata: false,
       })
-      .mockResolvedValue({ restarted: false })
+      .mockResolvedValue(undefined)
     const changeGlobalOption = vi.fn().mockResolvedValue(undefined)
     const api = shallowRef({
       client: {

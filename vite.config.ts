@@ -12,7 +12,7 @@ export default defineConfig({
   },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   clearScreen: false,
-  server: { port: 5173, strictPort: true },
+  server: { port: 5173, strictPort: true, watch: { ignored: ['**/src-tauri/target/**'] } },
   build: {
     rollupOptions: {
       output: {
