@@ -89,6 +89,24 @@ pub async fn save_settings(app: tauri::AppHandle, settings: Settings) -> Result<
 }
 
 #[tauri::command]
+pub async fn probe_url(url: String) -> Result<Option<u64>, String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("not an http url".into());
+    }
+    crate::aria2::probe_url_length(&url).await
+}
+
+#[tauri::command]
+pub fn get_file_size(app: tauri::AppHandle, path: String) -> Result<u64, String> {
+    let base = resolve_download_dir(&app);
+    let p = std::path::Path::new(&path);
+    if !is_within(p, &base) {
+        return Err("path outside download dir".into());
+    }
+    std::fs::metadata(p).map(|m| m.len()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn open_folder(app: tauri::AppHandle, path: String) {
     let p = std::path::Path::new(&path);
     if !p.exists() || !is_within(p, &resolve_download_dir(&app)) {

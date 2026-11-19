@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { Aria2Api } from '@/composables/useAria2'
 import type { Aria2Client } from '@/lib/aria2/rpc-client'
 import type { useTaskStore } from '@/stores/task'
+import { useDownloadMetaStore } from '@/stores/download-meta'
 import type { TaskOp } from '@/lib/task-op'
 
 type MessageApi = { error: (s: string) => void }
@@ -12,7 +13,17 @@ export function useTaskOperations(
   tasks: ReturnType<typeof useTaskStore>,
   message: MessageApi,
 ) {
+  const sizes = useDownloadMetaStore()
   const retry = ref({ show: false, gid: '', url: '', dir: '', filename: '', proxy: '', split: 5 })
+
+  function probeAndRecord(gid: string, url: string) {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return
+    invoke<number | null>('probe_url', { url })
+      .then((size) => {
+        if (size != null) sizes.setExpected(gid, size)
+      })
+      .catch(() => {})
+  }
 
   function refresh() {
     api.value!.refresh()
@@ -69,7 +80,9 @@ export function useTaskOperations(
           const url = t.files[0]?.uris[0]?.uri ?? ''
           const out = t.files[0]?.path?.split(/[\\/]/).pop() ?? ''
           await c.purge(gid, t.status)
-          await c.addUri([url], { dir: t.dir, out })
+          const newGid = await c.addUri([url], { dir: t.dir, out })
+          sizes.carry(gid, newGid)
+          probeAndRecord(newGid, url)
           break
         }
         case 'retryWithUrl': {
@@ -107,7 +120,9 @@ export function useTaskOperations(
     if (proxy) options['all-proxy'] = proxy
     try {
       await c.purge(retry.value.gid, t.status)
-      await c.addUri([url], options)
+      const gid = await c.addUri([url], options)
+      sizes.carry(retry.value.gid, gid)
+      probeAndRecord(gid, url)
       refresh()
     } catch (e) {
       message.error(`重试失败：${String(e)}`)
@@ -128,7 +143,8 @@ export function useTaskOperations(
     if (filename) options.out = filename
     if (proxy) options['all-proxy'] = proxy
     try {
-      await c.addUri([url], options)
+      const gid = await c.addUri([url], options)
+      probeAndRecord(gid, url)
       refresh()
     } catch (e) {
       message.error(`添加失败：${String(e)}`)

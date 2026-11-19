@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { NCheckbox, NPopconfirm, NProgress, NTable } from 'naive-ui'
+import { NCheckbox, NPopconfirm, NProgress, NTable, NTag } from 'naive-ui'
 import { computed } from 'vue'
 import type { Aria2Task } from '@/lib/aria2/types'
 import type { TaskOp } from '@/lib/task-op'
 import { useTaskStore } from '@/stores/task'
+import { useDownloadMetaStore } from '@/stores/download-meta'
 import { usePrefStore, type SortKey } from '@/stores/preferences'
 import { fmtSpeed, fmtBytes, fmtProgress, taskName, fmtEta } from '@/lib/format'
 
@@ -20,6 +21,18 @@ defineEmits<{
 
 const store = useTaskStore()
 const prefs = usePrefStore()
+const meta = useDownloadMetaStore()
+
+function sizeText(t: Aria2Task): string {
+  if (t.totalLength !== '0') return fmtBytes(t.totalLength)
+  const expected = meta.meta[t.gid]?.expected
+  return expected ? `${fmtBytes(expected)} 预计` : fmtBytes(0)
+}
+
+function sizeMismatch(t: Aria2Task): boolean {
+  const m = meta.meta[t.gid]
+  return m?.expected !== undefined && m?.actual !== undefined && m.actual !== m.expected
+}
 
 const sortableColumns: { key: SortKey; label: string }[] = [
   { key: 'name', label: '名称' },
@@ -56,7 +69,14 @@ function primaryOp(t: Aria2Task): { op: TaskOp; label: string } | null {
 }
 
 const rows = computed(() =>
-  props.tasks.map((t) => ({ t, name: taskName(t), pct: fmtProgress(t), primary: primaryOp(t) })),
+  props.tasks.map((t) => ({
+    t,
+    name: taskName(t),
+    pct: fmtProgress(t),
+    size: sizeText(t),
+    bad: sizeMismatch(t),
+    primary: primaryOp(t),
+  })),
 )
 const allChecked = computed(() => props.tasks.length > 0 && props.tasks.every((t) => store.selection.has(t.gid)))
 function toggleAll(v: boolean) {
@@ -93,10 +113,10 @@ function toggleAll(v: boolean) {
         </td>
         <td>{{ r.name }}</td>
         <td style="width: 180px"><NProgress :percentage="r.pct" :height="10" /></td>
-        <td style="width: 90px">{{ fmtBytes(r.t.totalLength) }}</td>
+        <td style="width: 90px">{{ r.size }}</td>
         <td>{{ fmtSpeed(r.t.downloadSpeed) }}</td>
         <td>{{ fmtEta(r.t) }}</td>
-        <td>{{ r.t.status }}</td>
+        <td>{{ r.t.status }} <NTag v-if="r.bad" type="error" size="small">大小异常</NTag></td>
         <td @click.stop>
           <template v-if="r.primary">
             <a

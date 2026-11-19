@@ -90,6 +90,43 @@ pub fn rpc_http_url(port: u16) -> String {
     format!("http://127.0.0.1:{port}/jsonrpc")
 }
 
+/// 从 Content-Range 头（如 "bytes 0-0/137946130"）解析资源总大小。
+pub fn parse_content_range_total(header: &str) -> Option<u64> {
+    header.rsplit('/').next()?.trim().parse().ok()
+}
+
+/// 探测 URL 的资源大小：HEAD 跟随重定向取 Content-Length；
+/// 无则回退 GET + Range 解析 Content-Range。None = 服务器未提供长度。
+pub async fn probe_url_length(url: &str) -> Result<Option<u64>, String> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(10))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AriaPanel")
+        .build()
+        .map_err(|e| e.to_string())?;
+    if let Ok(resp) = client.head(url).send().await {
+        if resp.status().is_success() {
+            if let Some(len) = resp.content_length() {
+                return Ok(Some(len));
+            }
+        }
+    }
+    let resp = client
+        .get(url)
+        .header(reqwest::header::RANGE, "bytes=0-0")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if resp.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+        if let Some(cr) = resp.headers().get(reqwest::header::CONTENT_RANGE) {
+            if let Some(total) = cr.to_str().ok().and_then(parse_content_range_total) {
+                return Ok(Some(total));
+            }
+        }
+    }
+    Ok(resp.content_length())
+}
+
 pub fn binary_path(app: &tauri::AppHandle) -> Option<PathBuf> {
     let name = if cfg!(windows) {
         "resources/aria2c.exe"
@@ -320,6 +357,13 @@ mod tests {
         let b = new_config(Path::new("dummy"), &s);
         assert_ne!(a.port, b.port);
         assert_ne!(a.secret, b.secret);
+    }
+
+    #[test]
+    fn parse_content_range_total() {
+        assert_eq!(super::parse_content_range_total("bytes 0-0/137946130"), Some(137946130));
+        assert_eq!(super::parse_content_range_total("bytes 0-0/*"), None);
+        assert_eq!(super::parse_content_range_total("garbage"), None);
     }
 
     #[test]

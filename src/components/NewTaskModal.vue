@@ -19,6 +19,7 @@ import { useDirBrowser } from '@/composables/useDirBrowser'
 import { useCategoryDir } from '@/composables/useCategoryDir'
 import type { Aria2Api } from '@/composables/useAria2'
 import type { Aria2TaskDetail } from '@/lib/aria2/types'
+import { useDownloadMetaStore } from '@/stores/download-meta'
 import { fmtBytes } from '@/lib/format'
 
 interface ParsedFile {
@@ -38,6 +39,7 @@ const emit = defineEmits<{ 'update:show': [v: boolean]; submitted: [] }>()
 
 const api = inject<Ref<Aria2Api | null>>('aria2-api')
 const message = useMessage()
+const sizes = useDownloadMetaStore()
 
 const urls = ref('')
 const dir = ref(props.defaultDir)
@@ -410,7 +412,14 @@ async function submit() {
   const errors: string[] = []
   for (const url of list) {
     try {
-      await c.addUri([url], options)
+      const gid = await c.addUri([url], options)
+      if (detectedType.value !== 'bt') {
+        invoke<number | null>('probe_url', { url })
+          .then((size) => {
+            if (size != null) sizes.setExpected(gid, size)
+          })
+          .catch(() => {})
+      }
       success++
     } catch (e) {
       errors.push(`${url}: ${String(e)}`)

@@ -58,4 +58,25 @@ describe('TaskTable', () => {
     const w = mount(TaskTable, { props: { tasks: [mkTask('g1', 'active')], operate: () => {} } })
     expect(w.text()).toContain('↓')
   })
+
+  it('shows expected size when aria2 reports unknown length', () => {
+    localStorage.setItem('ap:size-meta', JSON.stringify({ g1: { expected: 137946130 } }))
+    const t = mkTask('g1', 'active')
+    t.totalLength = '0'
+    const w = mount(TaskTable, { props: { tasks: [t], operate: () => {} } })
+    expect(w.text()).toContain('131.6 MB')
+    expect(w.text()).toContain('预计')
+  })
+
+  it('shows size mismatch badge when verified actual differs from expected', () => {
+    localStorage.setItem('ap:size-meta', JSON.stringify({ g1: { expected: 1000, actual: 640 } }))
+    const w = mount(TaskTable, { props: { tasks: [mkTask('g1', 'complete')], operate: () => {} } })
+    expect(w.text()).toContain('大小异常')
+  })
+
+  it('shows no badge when verified size matches expected', () => {
+    localStorage.setItem('ap:size-meta', JSON.stringify({ g1: { expected: 1000, actual: 1000 } }))
+    const w = mount(TaskTable, { props: { tasks: [mkTask('g1', 'complete')], operate: () => {} } })
+    expect(w.text()).not.toContain('大小异常')
+  })
 })

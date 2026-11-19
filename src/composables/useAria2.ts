@@ -6,6 +6,8 @@ import { Poller } from '@/lib/aria2/poller'
 import { WsNotifier } from '@/lib/aria2/ws-notify'
 import { useConnectionStore } from '@/stores/connection'
 import { useTaskStore } from '@/stores/task'
+import { useDownloadMetaStore } from '@/stores/download-meta'
+import type { Aria2Task } from '@/lib/aria2/types'
 
 export interface Aria2Api {
   client: Aria2Client
@@ -16,6 +18,7 @@ export interface Aria2Api {
 export function useAria2() {
   const conn = useConnectionStore()
   const tasks = useTaskStore()
+  const sizes = useDownloadMetaStore()
   const apiRef = shallowRef<Aria2Api | null>(null)
   let client: Aria2Client | null = null
   let poller: Poller | null = null
@@ -62,6 +65,7 @@ export function useAria2() {
       client,
       (a, w, s) => {
         tasks.apply(a, w, s)
+        verifyCompletedSizes([...a, ...w, ...s])
         refreshStat()
       },
       (connected) => {
@@ -73,6 +77,21 @@ export function useAria2() {
     ws = new WsNotifier(wsUrl, ep.secret, () => {})
     ws.start()
     apiRef.value = getApi()
+  }
+
+  // 对 chunked 流式下载（服务器不返回长度），aria2 会把断流误标为 complete。
+  // 用 addUri 前 HEAD 探测的预期大小比对磁盘实际大小，抓出截断文件。
+  function verifyCompletedSizes(list: Aria2Task[]) {
+    for (const t of list) {
+      if (t.status !== 'complete') continue
+      const m = sizes.meta[t.gid]
+      if (!m || m.expected === undefined || m.actual !== undefined) continue
+      const path = t.files[0]?.path
+      if (!path) continue
+      invoke<number>('get_file_size', { path })
+        .then((size) => sizes.verify(t.gid, size))
+        .catch(() => {})
+    }
   }
 
   async function refreshStat() {
