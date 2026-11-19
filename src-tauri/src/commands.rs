@@ -93,6 +93,13 @@ pub async fn probe_url(url: String) -> Result<Option<u64>, String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("not an http url".into());
     }
+    // GitHub release 走 api.github.com 优先：github.com 主站在部分网络下不可达，
+    // 而 API 域名通常可达且给出精确字节数。
+    if let Some(rel) = crate::github::parse_release_url(&url) {
+        if let Ok(Some(size)) = crate::github::api_asset_size(&rel).await {
+            return Ok(Some(size));
+        }
+    }
     crate::aria2::probe_url_length(&url).await
 }
 

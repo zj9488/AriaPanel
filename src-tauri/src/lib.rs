@@ -3,6 +3,7 @@ pub mod settings;
 pub mod commands;
 pub mod secret;
 pub mod log_buffer;
+pub mod github;
 
 use aria2::{binary_path, new_config, rpc_http_url};
 use commands::{AppState, RpcEndpoint};

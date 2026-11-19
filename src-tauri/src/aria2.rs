@@ -432,9 +432,18 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // 依赖外网
+    async fn probe_github_via_api() {
+        let url = "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip";
+        let r = crate::github::parse_release_url(url).unwrap();
+        let size = crate::github::api_asset_size(&r).await.unwrap();
+        println!("github api size: {size:?}");
+        assert_eq!(size, Some(2475379));
+    }
+
+    #[tokio::test]
     #[ignore] // 依赖外网与签名链接有效期
-    async fn probe_116pan_url() {
-        let url = "https://pt-n2.116pan.xyz/2026/10/06/5fa9ccd9cf4c01a1c6b7d8b5beb86b6d.rar?sig=QAPPvhrSKsfZGnCJSaMx4MdjPzc3FSEIy3wpQz9-JXs&expires=1794994070000&dlname=S34.rar";
+    async fn probe_116pan_url() {        let url = "https://pt-n2.116pan.xyz/2026/10/06/5fa9ccd9cf4c01a1c6b7d8b5beb86b6d.rar?sig=QAPPvhrSKsfZGnCJSaMx4MdjPzc3FSEIy3wpQz9-JXs&expires=1794994070000&dlname=S34.rar";
         let client = reqwest::Client::builder()
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AriaPanel")
             .build()
